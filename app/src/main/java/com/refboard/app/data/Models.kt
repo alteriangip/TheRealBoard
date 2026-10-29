@@ -48,9 +48,12 @@ data class Board(
     val name: String,
     val pins: List<Pin> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
+    /** Image chosen as the board's cover; falls back to the newest pins. */
+    val cover: String? = null,
 )
 
 /** One image to show in the full-screen viewer. */
+@Serializable
 data class ViewerImage(
     val url: String,
     val galleryUrl: String?,

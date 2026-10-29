@@ -22,7 +22,7 @@ class RefBoardApp : Application(), ImageLoaderFactory {
         instance = this
         if (!Python.isStarted()) Python.start(AndroidPlatform(this))
         boards = BoardStore(this, appScope)
-        downloader = Downloader(this, appScope)
+        downloader = Downloader(this)
         prefs = Prefs(this)
     }
 

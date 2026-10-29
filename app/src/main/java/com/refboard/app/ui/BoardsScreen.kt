@@ -1,5 +1,10 @@
 package com.refboard.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +13,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -27,16 +34,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.StopCircle
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -50,27 +67,72 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.refboard.app.RefBoardApp
 import com.refboard.app.data.Board
+import com.refboard.app.data.Pin
 import com.refboard.app.data.Thumbs
 import com.refboard.app.data.ViewerImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BoardsScreen(onOpenBoard: (String) -> Unit) {
     val boards by RefBoardApp.boards.boards.collectAsState()
     var creating by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use {
+                        it.write(RefBoardApp.boards.exportJson().toByteArray())
+                    }
+                }.isSuccess
+            }
+            Session.toast(if (ok) "Boards backed up" else "Backup failed")
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val text = context.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() }
+                    RefBoardApp.boards.importJson(text)
+                }
+            }
+            result.onSuccess { (newBoards, newPins) ->
+                Session.toast("Restored $newBoards boards and $newPins pins")
+            }.onFailure { Session.toast("Couldn't restore: ${it.message}") }
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -78,6 +140,29 @@ fun BoardsScreen(onOpenBoard: (String) -> Unit) {
             TopAppBar(
                 title = { Text("Boards") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                actions = {
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More") }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Back up boards") },
+                                enabled = boards.isNotEmpty(),
+                                onClick = {
+                                    menu = false
+                                    val stamp = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                                    exportLauncher.launch("refboard-backup-$stamp.json")
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Restore from backup") },
+                                onClick = {
+                                    menu = false
+                                    importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                                },
+                            )
+                        }
+                    }
+                },
             )
         },
         floatingActionButton = {
@@ -90,7 +175,7 @@ fun BoardsScreen(onOpenBoard: (String) -> Unit) {
     ) { padding ->
         if (boards.isEmpty()) {
             CenterMessage(
-                "No boards yet. Pin images from a gallery, or make a board here.",
+                "No boards yet. Pin images from a gallery, make a board here, or restore a backup from the ⋮ menu.",
                 Modifier.padding(padding),
             )
         } else {
@@ -119,8 +204,8 @@ fun BoardsScreen(onOpenBoard: (String) -> Unit) {
 @Composable
 private fun BoardCard(board: Board, onClick: () -> Unit) {
     Column(Modifier.clickable(onClick = onClick)) {
-        // 2x2 collage of the newest pins
-        val covers = board.pins.take(4).map { it.imageUrl }
+        // The chosen cover, or a 2x2 collage of the newest pins
+        val covers = board.cover?.let { listOf(it) } ?: board.pins.take(4).map { it.imageUrl }
         Box(
             Modifier.fillMaxWidth().aspectRatio(0.85f).clip(RoundedCornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -165,21 +250,49 @@ private fun CoverImage(url: String, modifier: Modifier) {
     )
 }
 
+private enum class PinSort(val label: String) {
+    Newest("Newest first"),
+    Oldest("Oldest first"),
+    Gallery("Grouped by gallery"),
+}
+
+private fun sortPins(pins: List<Pin>, sort: PinSort): List<Pin> = when (sort) {
+    PinSort.Newest -> pins.sortedByDescending { it.addedAt }
+    PinSort.Oldest -> pins.sortedBy { it.addedAt }
+    // Galleries in order of their newest pin, images in gallery order.
+    PinSort.Gallery -> pins.sortedByDescending { it.addedAt }
+        .groupBy { it.galleryUrl ?: it.imageUrl }
+        .values.flatMap { group -> group.sortedBy { it.imageUrl } }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun BoardDetailScreen(
     boardId: String,
     onBack: () -> Unit,
     onOpenViewer: () -> Unit,
+    onOpenPractice: (seconds: Int) -> Unit,
 ) {
     val boards by RefBoardApp.boards.boards.collectAsState()
     val board = boards.firstOrNull { it.id == boardId }
     val downloads by RefBoardApp.downloader.states.collectAsState()
     val dl = downloads[boardId]
-    var tagFilter by remember { mutableStateOf<String?>(null) }
+    var tagFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var sort by rememberSaveable { mutableStateOf(PinSort.Newest) }
     val selected = remember { mutableStateListOf<String>() }
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var practicing by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // Ask once for notifications so the download progress shows; the
+    // download starts either way.
+    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        board?.let { RefBoardApp.downloader.downloadBoard(it) }
+    }
 
     if (board == null) {
         CenterMessage("Board not found")
@@ -191,11 +304,20 @@ fun BoardDetailScreen(
         board.pins.flatMap { it.tags }.groupingBy { it }.eachCount()
             .entries.sortedByDescending { it.value }.map { it.key }.take(40)
     }
-    val pins = remember(board.pins, tagFilter) {
+    val pins = remember(board.pins, tagFilter, sort) {
         val f = tagFilter
-        if (f == null) board.pins else board.pins.filter { f in it.tags }
+        sortPins(if (f == null) board.pins else board.pins.filter { f in it.tags }, sort)
     }
     val selecting = selected.isNotEmpty()
+
+    fun startDownload() {
+        Session.toast("Saving to Pictures/RefBoard/${board.name}")
+        val needsAsk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        if (needsAsk) notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else RefBoardApp.downloader.downloadBoard(board)
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -216,20 +338,64 @@ fun BoardDetailScreen(
                 actions = {
                     if (selecting) {
                         IconButton(onClick = {
+                            selected.clear()
+                            selected.addAll(pins.map { it.imageUrl })
+                        }) { Icon(Icons.Outlined.SelectAll, "Select all") }
+                        if (selected.size == 1) {
+                            IconButton(onClick = {
+                                RefBoardApp.boards.setCover(boardId, selected.first())
+                                Session.toast("Cover updated")
+                                selected.clear()
+                            }) { Icon(Icons.Outlined.Wallpaper, "Set as cover") }
+                        }
+                        IconButton(onClick = { moving = true }) {
+                            Icon(Icons.Outlined.DriveFileMove, "Move to another board")
+                        }
+                        IconButton(onClick = {
                             RefBoardApp.boards.removePins(boardId, selected.toSet())
                             Session.toast("Removed ${selected.size}")
                             selected.clear()
                         }) { Icon(Icons.Outlined.Delete, "Remove from board") }
                     } else {
-                        IconButton(
-                            enabled = board.pins.isNotEmpty() && (dl == null || dl.finished),
-                            onClick = {
-                                RefBoardApp.downloader.downloadBoard(board)
-                                Session.toast("Saving to Pictures/RefBoard/${board.name}")
-                            },
-                        ) { Icon(Icons.Outlined.Download, "Download board") }
-                        IconButton(onClick = { renaming = true }) { Icon(Icons.Outlined.Edit, "Rename") }
-                        IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Outlined.Delete, "Delete board") }
+                        IconButton(enabled = pins.isNotEmpty(), onClick = { practicing = true }) {
+                            Icon(Icons.Outlined.Timer, "Timed practice")
+                        }
+                        if (dl != null && !dl.finished) {
+                            IconButton(onClick = { RefBoardApp.downloader.cancel(boardId) }) {
+                                Icon(Icons.Outlined.StopCircle, "Stop download")
+                            }
+                        } else {
+                            IconButton(enabled = board.pins.isNotEmpty(), onClick = ::startDownload) {
+                                Icon(Icons.Outlined.Download, "Download board")
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { sortMenu = true }) { Icon(Icons.AutoMirrored.Outlined.Sort, "Sort") }
+                            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                PinSort.entries.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option.label) },
+                                        leadingIcon = {
+                                            if (option == sort) Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
+                                        },
+                                        onClick = { sort = option; sortMenu = false },
+                                    )
+                                }
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { moreMenu = true }) { Icon(Icons.Outlined.MoreVert, "More") }
+                            DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                                DropdownMenuItem(text = { Text("Rename") }, onClick = { moreMenu = false; renaming = true })
+                                if (board.cover != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Reset cover") },
+                                        onClick = { moreMenu = false; RefBoardApp.boards.setCover(boardId, null) },
+                                    )
+                                }
+                                DropdownMenuItem(text = { Text("Delete board") }, onClick = { moreMenu = false; confirmDelete = true })
+                            }
+                        }
                     }
                 },
             )
@@ -245,11 +411,17 @@ fun BoardDetailScreen(
             item(span = StaggeredGridItemSpan.FullLine, key = "header") {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (dl != null) {
-                        val progress = if (dl.total == 0) 1f else (dl.done + dl.failed).toFloat() / dl.total
+                        val progress = if (dl.total == 0) 1f else dl.handled.toFloat() / dl.total
+                        val extra = buildString {
+                            if (dl.skipped > 0) append(" · ${dl.skipped} already saved")
+                            if (dl.failed > 0) append(" · ${dl.failed} failed")
+                        }
                         Text(
-                            if (dl.finished) "Downloaded ${dl.done}/${dl.total}" +
-                                (if (dl.failed > 0) " · ${dl.failed} failed" else "")
-                            else "Downloading ${dl.done + dl.failed}/${dl.total}…",
+                            when {
+                                dl.cancelled -> "Stopped at ${dl.handled}/${dl.total}$extra"
+                                dl.finished -> "Downloaded ${dl.done}/${dl.total}$extra"
+                                else -> "Downloading ${dl.handled}/${dl.total}…$extra"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(horizontal = 4.dp),
                         )
@@ -279,10 +451,7 @@ fun BoardDetailScreen(
                                 if (selecting) {
                                     if (!selected.remove(pin.imageUrl)) selected.add(pin.imageUrl)
                                 } else {
-                                    Session.openViewer(
-                                        pins.map { ViewerImage(it.imageUrl, it.galleryUrl, it.title, it.tags) },
-                                        index,
-                                    )
+                                    Session.openViewer(pins.map { it.toViewerImage() }, index)
                                     onOpenViewer()
                                 }
                             },
@@ -326,6 +495,77 @@ fun BoardDetailScreen(
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
     }
+    if (practicing) {
+        PracticeDialog(
+            count = pins.size,
+            onDismiss = { practicing = false },
+            onStart = { seconds, shuffle, limit ->
+                practicing = false
+                val order = if (shuffle) pins.shuffled() else pins
+                Session.openViewer(order.take(limit).map { it.toViewerImage() }, 0)
+                onOpenPractice(seconds)
+            },
+        )
+    }
+    if (moving) {
+        val count = selected.size
+        BoardPickerSheet(
+            title = "Move $count images to…",
+            excludeBoardId = boardId,
+            onDismiss = { moving = false },
+            onPicked = { target ->
+                moving = false
+                RefBoardApp.boards.movePins(boardId, target.id, selected.toSet())
+                Session.toast("Moved $count to ${target.name}")
+                selected.clear()
+            },
+        )
+    }
+}
+
+private fun Pin.toViewerImage() = ViewerImage(imageUrl, galleryUrl, title, tags)
+
+private val practiceTimes = listOf(30, 60, 120, 300, 600)
+private val practiceCounts = listOf(5, 10, 20, 40)
+
+/** Options for a timed gesture-drawing session. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PracticeDialog(count: Int, onDismiss: () -> Unit, onStart: (seconds: Int, shuffle: Boolean, limit: Int) -> Unit) {
+    var seconds by rememberSaveable { mutableIntStateOf(60) }
+    var limit by rememberSaveable { mutableIntStateOf(Int.MAX_VALUE) }
+    var shuffle by rememberSaveable { mutableStateOf(true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Timed practice") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Time per image", style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    practiceTimes.forEach { s ->
+                        FilterChip(selected = s == seconds, onClick = { seconds = s }, label = { Text(formatClock(s)) })
+                    }
+                }
+                Text("Images", style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    practiceCounts.filter { it < count }.forEach { n ->
+                        FilterChip(selected = n == limit, onClick = { limit = n }, label = { Text("$n") })
+                    }
+                    FilterChip(
+                        selected = limit >= count,
+                        onClick = { limit = Int.MAX_VALUE },
+                        label = { Text("All $count") },
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { shuffle = !shuffle }) {
+                    Checkbox(checked = shuffle, onCheckedChange = { shuffle = it })
+                    Text("Shuffle")
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onStart(seconds, shuffle, limit) }) { Text("Start") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

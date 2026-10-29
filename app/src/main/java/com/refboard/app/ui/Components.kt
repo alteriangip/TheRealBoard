@@ -125,8 +125,10 @@ fun BoardPickerSheet(
     title: String,
     onDismiss: () -> Unit,
     onPicked: (Board) -> Unit,
+    excludeBoardId: String? = null,
 ) {
-    val boards by RefBoardApp.boards.boards.collectAsState()
+    val allBoards by RefBoardApp.boards.boards.collectAsState()
+    val boards = allBoards.filter { it.id != excludeBoardId }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var newName by remember { mutableStateOf("") }
 
@@ -163,7 +165,7 @@ fun BoardPickerSheet(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val cover = board.pins.firstOrNull()?.imageUrl
+                        val cover = board.cover ?: board.pins.firstOrNull()?.imageUrl
                         Box(
                             Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant),

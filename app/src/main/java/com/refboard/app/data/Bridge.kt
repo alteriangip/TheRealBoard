@@ -1,5 +1,6 @@
 package com.refboard.app.data
 
+import android.util.LruCache
 import com.chaquo.python.PyException
 import com.chaquo.python.Python
 import kotlinx.coroutines.Dispatchers
@@ -7,14 +8,15 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import java.util.concurrent.ConcurrentHashMap
 
 /** Kotlin side of refbridge.py (gallery-dl running inside the app). */
 object Bridge {
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val py by lazy { Python.getInstance().getModule("refbridge") }
 
-    private val galleryCache = ConcurrentHashMap<String, GalleryData>()
+    // Recently opened galleries, so going back and forth is instant without
+    // keeping every gallery of a long session in memory.
+    private val galleryCache = LruCache<String, GalleryData>(60)
     private val previewLimit = Semaphore(3)
 
     fun searchUrl(query: String): String = py.callAttr("search_url", query).toString()
@@ -38,15 +40,15 @@ object Bridge {
     }
 
     suspend fun gallery(url: String): GalleryData {
-        galleryCache[url]?.let { return it }
+        galleryCache.get(url)?.let { return it }
         val data = io {
             json.decodeFromString(GalleryData.serializer(), py.callAttr("gallery", url).toString())
         }
-        galleryCache[url] = data
+        galleryCache.put(url, data)
         return data
     }
 
-    fun cachedGallery(url: String): GalleryData? = galleryCache[url]
+    fun cachedGallery(url: String): GalleryData? = galleryCache.get(url)
 
     /** Cover image for feed tiles that arrived without a thumbnail. */
     suspend fun cover(galleryUrl: String): String? = previewLimit.withPermit {

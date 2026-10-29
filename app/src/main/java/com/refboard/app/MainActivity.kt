@@ -74,12 +74,12 @@ private object Routes {
     const val EXPLORE = "explore"
     const val BOARDS = "boards"
     const val GALLERY = "gallery?url={url}"
-    const val VIEWER = "viewer?gallery={gallery}"
+    const val VIEWER = "viewer?gallery={gallery}&timer={timer}"
     const val BOARD = "board/{id}"
     const val DEBUG = "debug"
 
     fun gallery(url: String) = "gallery?url=${Uri.encode(url)}"
-    fun viewer(showGallery: Boolean) = "viewer?gallery=$showGallery"
+    fun viewer(showGallery: Boolean, timerSeconds: Int = 0) = "viewer?gallery=$showGallery&timer=$timerSeconds"
     fun board(id: String) = "board/$id"
 }
 
@@ -167,13 +167,17 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
             }
             composable(
                 Routes.VIEWER,
-                arguments = listOf(navArgument("gallery") { type = NavType.BoolType; defaultValue = true }),
+                arguments = listOf(
+                    navArgument("gallery") { type = NavType.BoolType; defaultValue = true },
+                    navArgument("timer") { type = NavType.IntType; defaultValue = 0 },
+                ),
             ) { entry ->
                 ViewerScreen(
                     onBack = { nav.popBackStack() },
                     onTag = ::searchTag,
                     onOpenGallery = { nav.navigate(Routes.gallery(it)) },
                     showGalleryButton = entry.arguments?.getBoolean("gallery") ?: true,
+                    practiceSeconds = entry.arguments?.getInt("timer") ?: 0,
                 )
             }
             composable(
@@ -184,6 +188,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                     boardId = entry.arguments?.getString("id").orEmpty(),
                     onBack = { nav.popBackStack() },
                     onOpenViewer = { nav.navigate(Routes.viewer(true)) },
+                    onOpenPractice = { nav.navigate(Routes.viewer(showGallery = false, timerSeconds = it)) },
                 )
             }
             composable(Routes.DEBUG) {
