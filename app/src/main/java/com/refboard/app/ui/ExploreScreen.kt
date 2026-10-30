@@ -74,7 +74,7 @@ private val starterSearches = listOf(
 
 @Composable
 fun ExploreScreen(
-    vm: ExploreViewModel,
+    vm: FeedViewModel,
     onOpenGallery: (String) -> Unit,
     onOpenViewer: () -> Unit,
     onOpenDebug: () -> Unit,
@@ -173,7 +173,7 @@ private fun HomeSuggestions(onSearch: (String) -> Unit, onOpenUrl: (String) -> U
             AssistChip(onClick = { onOpenUrl("${Net.ROOT}/rating/") }, label = { Text("Top rated") })
         }
         Text(
-            "Tip: tap any tag on a gallery to search it. Long-press a tile to save the whole gallery to a board.",
+            "Tip: tap any tag on a gallery to search it. Long-press a tile to save the whole gallery to a board. Browse every category and tag in the Categories tab.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 12.dp),
@@ -194,7 +194,7 @@ private fun SectionLabel(text: String) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FeedGrid(
-    vm: ExploreViewModel,
+    vm: FeedViewModel,
     onOpenGallery: (String) -> Unit,
     onOpenViewer: () -> Unit,
 ) {
@@ -202,6 +202,9 @@ private fun FeedGrid(
     var pickerFor by remember { mutableStateOf<String?>(null) }
     val source = vm.source
 
+    LaunchedEffect(source) {
+        if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0)
+    }
     LaunchedEffect(gridState, source) {
         snapshotFlow {
             val info = gridState.layoutInfo
@@ -217,16 +220,18 @@ private fun FeedGrid(
         contentPadding = PaddingValues(10.dp),
         verticalItemSpacing = 8.dp,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
     ) {
-        item(span = StaggeredGridItemSpan.FullLine, key = "header") {
-            Text(
-                source?.label ?: "",
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-            )
+        if (showHeader) {
+            item(span = StaggeredGridItemSpan.FullLine, key = "header") {
+                Text(
+                    source?.label ?: "",
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                )
+            }
         }
         items(vm.items, key = { it.url }) { item ->
             FeedTile(

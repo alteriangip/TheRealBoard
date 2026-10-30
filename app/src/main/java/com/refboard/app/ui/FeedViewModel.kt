@@ -10,20 +10,24 @@ import androidx.lifecycle.viewModelScope
 import com.refboard.app.RefBoardApp
 import com.refboard.app.data.Board
 import com.refboard.app.data.Bridge
+import com.refboard.app.data.Catalog
 import com.refboard.app.data.FeedItem
+import com.refboard.app.data.FeedLoader
+import com.refboard.app.data.FeedPage
 import com.refboard.app.data.FeedSource
+import com.refboard.app.data.Feeds
 import com.refboard.app.data.Pin
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-class ExploreViewModel : ViewModel() {
+/** A scrolling grid of galleries or images from any [FeedSource]. */
+class FeedViewModel : ViewModel() {
 
     var source by mutableStateOf<FeedSource?>(null)
         private set
     val items = mutableStateListOf<FeedItem>()
+    private val seen = HashSet<String>()
     var loading by mutableStateOf(false)
         private set
     var done by mutableStateOf(false)
@@ -35,7 +39,7 @@ class ExploreViewModel : ViewModel() {
     val covers = mutableStateMapOf<String, String>()
     private val coverRequested = HashSet<String>()
 
-    private var feedId: Int? = null
+    private var loader: FeedLoader? = null
     private var job: Job? = null
     private var generation = 0
 
@@ -46,8 +50,38 @@ class ExploreViewModel : ViewModel() {
         open(FeedSource.Search(q))
     }
 
-    fun openTag(tag: String) = open(FeedSource.Tag(tag))
+    /** Opens a tag, as its category page when the site has one by that name. */
+    fun openTag(tag: String) {
+        val cat = Catalog.categoryNamed(tag)
+        open(if (cat != null) FeedSource.Category(cat.name, cat.url) else FeedSource.Tag(tag))
+    }
+
     fun openUrl(url: String) = open(FeedSource.Url(url))
+
+    /** Opens [src] unless it is already showing. */
+    fun show(src: FeedSource) {
+        if (source != src) open(src)
+    }
+
+    /** "For you", rebuilt with a new mix each time unless one is already showing. */
+    fun openForYou(fresh: Boolean = false) {
+        if (!fresh && source is FeedSource.Mix) return
+        val gen = ++generation
+        loading = true
+        viewModelScope.launch {
+            val categories = runCatching { Catalog.loadCategories() }.getOrDefault(emptyList())
+            if (gen != generation) return@launch
+            open(
+                Feeds.forYou(
+                    boards = RefBoardApp.boards.boards.value,
+                    recent = RefBoardApp.prefs.recent.value,
+                    categories = categories,
+                    seed = System.currentTimeMillis(),
+                ),
+            )
+        }
+    }
+
     fun retry() {
         source?.let { open(it) }
     }
@@ -60,31 +94,34 @@ class ExploreViewModel : ViewModel() {
     private fun reset() {
         generation++
         job?.cancel()
-        feedId?.let { Bridge.closeFeed(it) }
-        feedId = null
+        loader?.close()
+        loader = null
         items.clear()
+        seen.clear()
         done = false
         error = null
         loading = false
     }
 
-    private fun open(src: FeedSource) {
+    fun open(src: FeedSource) {
         reset()
         source = src
         val gen = generation
         loading = true
         job = viewModelScope.launch {
             val result = runCatching {
-                val url = withContext(Dispatchers.IO) { Bridge.urlFor(src) }
-                val id = Bridge.startFeed(url)
-                feedId = id
-                Bridge.nextPage(id, 20)
+                val l = Feeds.loader(src)
+                if (gen != generation) {
+                    l.close()
+                    throw CancellationException()
+                }
+                loader = l
+                l.next(PAGE)
             }
             if (gen != generation) return@launch
             loading = false
             result.onSuccess { page ->
-                items.addAll(page.items.filter { new -> items.none { it.url == new.url } })
-                done = page.done
+                add(page)
                 // A tag with no page of its own: try it as a plain search.
                 if (page.items.isEmpty() && page.done && src is FeedSource.Tag) {
                     open(FeedSource.Search(src.tag))
@@ -98,21 +135,23 @@ class ExploreViewModel : ViewModel() {
     }
 
     fun loadMore() {
-        val id = feedId ?: return
+        val l = loader ?: return
         if (loading || done || error != null) return
         val gen = generation
         loading = true
         job = viewModelScope.launch {
-            val result = runCatching { Bridge.nextPage(id, 20) }
+            val result = runCatching { l.next(PAGE) }
             if (gen != generation) return@launch
             loading = false
-            result.onSuccess { page ->
-                items.addAll(page.items.filter { new -> items.none { it.url == new.url } })
-                done = page.done
-            }.onFailure { e ->
+            result.onSuccess { add(it) }.onFailure { e ->
                 if (e !is CancellationException) error = e.message ?: "Couldn't load more"
             }
         }
+    }
+
+    private fun add(page: FeedPage) {
+        items.addAll(page.items.filter { seen.add(it.url) })
+        done = page.done
     }
 
     fun resolveCover(galleryUrl: String) {
@@ -127,11 +166,15 @@ class ExploreViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        feedId?.let { Bridge.closeFeed(it) }
+        loader?.close()
+    }
+
+    private companion object {
+        const val PAGE = 20
     }
 }
 
-/** Shared by the explore and gallery screens. */
+/** Shared by the feed and gallery screens. */
 suspend fun saveGalleryToBoard(galleryUrl: String, board: Board) {
     Session.toast("Fetching gallery…")
     runCatching { Bridge.gallery(galleryUrl) }

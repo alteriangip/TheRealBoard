@@ -8,6 +8,7 @@ import coil.memory.MemoryCache
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.refboard.app.data.BoardStore
+import com.refboard.app.data.Catalog
 import com.refboard.app.data.Downloader
 import com.refboard.app.data.Net
 import com.refboard.app.data.Prefs
@@ -24,6 +25,7 @@ class RefBoardApp : Application(), ImageLoaderFactory {
         boards = BoardStore(this, appScope)
         downloader = Downloader(this)
         prefs = Prefs(this)
+        Catalog.start(this, appScope)
     }
 
     // One image loader for the whole app: sends the site's Referer, keeps a

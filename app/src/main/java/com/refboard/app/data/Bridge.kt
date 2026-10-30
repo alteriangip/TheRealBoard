@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /** Kotlin side of refbridge.py (gallery-dl running inside the app). */
@@ -21,12 +22,38 @@ object Bridge {
 
     fun searchUrl(query: String): String = py.callAttr("search_url", query).toString()
     fun tagUrl(tag: String): String = py.callAttr("tag_url", tag).toString()
+    suspend fun searchUrlAsync(query: String): String = io { searchUrl(query) }
+    suspend fun tagUrlAsync(tag: String): String = io { tagUrl(tag) }
     fun gdlVersion(): String = py.callAttr("gdl_version").toString()
 
     fun urlFor(source: FeedSource): String = when (source) {
         is FeedSource.Search -> searchUrl(source.query)
         is FeedSource.Tag -> tagUrl(source.tag)
         is FeedSource.Url -> source.url
+        is FeedSource.Category -> source.url
+        is FeedSource.Listing -> "${Net.ROOT}/${source.kind}/"
+        is FeedSource.Mix -> error("A mix has no single URL")
+    }
+
+    // ------------------------------------------------ site pages
+
+    private val sampleLimit = Semaphore(3)
+
+    suspend fun categories(): List<Category> = io {
+        json.decodeFromString(ListSerializer(Category.serializer()), py.callAttr("categories").toString())
+    }
+
+    suspend fun tagsIndex(): List<TagEntry> = io {
+        json.decodeFromString(ListSerializer(TagEntry.serializer()), py.callAttr("tags_index").toString())
+    }
+
+    suspend fun listingPage(url: String, offset: Int): ListingPage = io {
+        json.decodeFromString(ListingPage.serializer(), py.callAttr("listing_page", url, offset).toString())
+    }
+
+    /** First gallery thumbnail on a tag page, or null. */
+    suspend fun tagSample(url: String): String? = sampleLimit.withPermit {
+        io { py.callAttr("tag_sample", url).toString().ifEmpty { null } }
     }
 
     suspend fun startFeed(url: String): Int = io { py.callAttr("feed_start", url).toInt() }

@@ -2,11 +2,14 @@
 # gallery-dl is only used to *find* links and metadata here; nothing is
 # written to disk. Every function returns a JSON string for Kotlin.
 
+import html
 import itertools
 import json
 import re
 import threading
+import urllib.error
 import urllib.parse
+import urllib.request
 
 from gallery_dl import config, extractor
 from gallery_dl import version as _gdl_version
@@ -234,3 +237,137 @@ def debug(url, limit):
         lines.append("    " + json.dumps(_plain(_payload(msg)),
                                          ensure_ascii=False)[:600])
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- site pages
+# Categories, tags and gallery listings are read straight from the site:
+# the HTML has a sample image per tile, which gallery-dl's listing
+# extractors drop, and category/tag/search pages continue as JSON.
+
+_LISTINGS = ("popular", "recent", "rating", "likes", "views", "comments")
+_TILE_RE = re.compile(
+    r"""<a\s+class=['"]rel-link['"]\s+href=['"]([^'"]+)['"][^>]*>(.*?)</a>""",
+    re.S)
+_DATA_SRC_RE = re.compile(r"""data-src=['"]([^'"]+)['"]""")
+_SRC_RE = re.compile(r"""\ssrc=['"]([^'"]+)['"]""")
+_ALT_RE = re.compile(r"""alt=['"]([^'"]*)['"]""")
+_H2_RE = re.compile(r"""<span class=['"]h2['"]>([^<]+)</span>""")
+_TAG_LINK_RE = re.compile(
+    r"""<a href=['"]/tags/([^/'"]+)/['"][^>]*>([^<]+)</a>""")
+
+
+def _get(url, params=None, referer=None, as_json=False):
+    if params:
+        url += ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
+    headers = {"User-Agent": UA, "Referer": referer or ROOT + "/"}
+    if as_json:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        raise ValueError("HTTP %d for %s" % (e.code, url)) from None
+    return json.loads(body) if as_json else body
+
+
+def _tiles(page):
+    out = []
+    for href, inner in _TILE_RE.findall(page):
+        img = None
+        m = _DATA_SRC_RE.search(inner) or _SRC_RE.search(inner)
+        if m and "1px" not in m.group(1):
+            img = _abs(m.group(1))
+        name = _H2_RE.search(inner) or _ALT_RE.search(inner)
+        out.append({
+            "url": _abs(href),
+            "thumb": img,
+            "title": html.unescape(name.group(1).strip()) if name else "",
+        })
+    return out
+
+
+def categories():
+    """Category tiles from the home page: name, link and a sample image."""
+    out = []
+    seen = set()
+    for t in _tiles(_get(ROOT + "/")):
+        path = t["url"][len(ROOT):] if t["url"].startswith(ROOT) else ""
+        if not re.fullmatch(r"/[a-z0-9-]+/", path) or path in seen:
+            continue
+        seen.add(path)
+        out.append({"name": t["title"] or path.strip("/"),
+                    "slug": path.strip("/"), "url": t["url"],
+                    "thumb": t["thumb"]})
+    return json.dumps(out)
+
+
+def tags_index():
+    """Every tag on the site's A-Z tag page (names only, no images)."""
+    out = []
+    seen = set()
+    for slug, name in _TAG_LINK_RE.findall(_get(ROOT + "/tags/")):
+        if slug not in seen:
+            seen.add(slug)
+            out.append({"name": html.unescape(name.strip()), "slug": slug})
+    return json.dumps(out)
+
+
+def _gallery_items(tiles):
+    return [{"type": "gallery", "url": t["url"], "thumb": t["thumb"],
+             "title": t["title"], "tags": []}
+            for t in tiles if "/galleries/" in t["url"]]
+
+
+def _json_items(rows):
+    items = []
+    for r in rows if isinstance(rows, list) else []:
+        url = _abs(r.get("g_url"))
+        if not url:
+            continue
+        items.append({"type": "gallery", "url": url,
+                      "thumb": _abs(r.get("t_url_460") or r.get("t_url")),
+                      "title": (r.get("desc") or r.get("title") or "").strip(),
+                      "tags": []})
+    return items
+
+
+def listing_page(url, offset):
+    """
+    One page of galleries for a category, tag, search or listing URL.
+    Returns {"items", "done", "next"}; pass "next" back as the offset.
+    """
+    offset = int(offset)
+    path = url[len(ROOT):] if url.startswith(ROOT) else url
+    query = re.match(r"/\?q=([^&#]+)", path)
+
+    if query:
+        q = urllib.parse.unquote(query.group(1)).replace("-", " ")
+        rows = _get(ROOT + "/search/srch.php",
+                    {"q": q, "lang": "en", "limit": 20, "offset": offset},
+                    referer=url, as_json=True)
+        items = _json_items(rows)
+        raw = len(rows) if isinstance(rows, list) else 0
+    elif offset == 0:
+        tiles = _tiles(_get(url))
+        items = _gallery_items(tiles)
+        raw = len(items)
+        if path.strip("/") in _LISTINGS:
+            # These pages have a single page of results.
+            return json.dumps({"items": items, "done": True, "next": raw})
+    else:
+        rows = _get(url, {"limit": 20, "offset": offset},
+                    referer=url, as_json=True)
+        items = _json_items(rows)
+        raw = len(rows) if isinstance(rows, list) else 0
+
+    return json.dumps({"items": items, "done": raw < 10,
+                       "next": offset + raw})
+
+
+def tag_sample(url):
+    """First gallery thumbnail on a tag or category page, or ""."""
+    for t in _tiles(_get(url)):
+        if "/galleries/" in t["url"] and t["thumb"]:
+            return t["thumb"]
+    return ""

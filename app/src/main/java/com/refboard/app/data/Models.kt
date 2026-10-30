@@ -17,6 +17,32 @@ data class FeedPage(
     val done: Boolean = false,
 )
 
+/** One page from a site listing; pass [next] back as the offset. */
+@Serializable
+data class ListingPage(
+    val items: List<FeedItem> = emptyList(),
+    val done: Boolean = false,
+    val next: Int = 0,
+)
+
+/** A site category with its sample image. */
+@Serializable
+data class Category(
+    val name: String,
+    val slug: String,
+    val url: String,
+    val thumb: String? = null,
+)
+
+/** An entry in the site's A-Z tag list. */
+@Serializable
+data class TagEntry(
+    val name: String,
+    val slug: String,
+) {
+    val url get() = "${Net.ROOT}/tags/$slug/"
+}
+
 @Serializable
 data class GalleryImage(
     val url: String,
@@ -75,6 +101,20 @@ sealed interface FeedSource {
 
     data class Url(val url: String) : FeedSource {
         override val label get() = url.removePrefix("https://").removePrefix("www.")
+    }
+
+    data class Category(val name: String, val url: String) : FeedSource {
+        override val label get() = name
+    }
+
+    /** One of the site's single-page listings: popular, recent, rating… */
+    data class Listing(val kind: String, val title: String) : FeedSource {
+        override val label get() = title
+    }
+
+    /** Several feeds interleaved, e.g. "For you". */
+    data class Mix(val title: String, val parts: List<FeedSource>) : FeedSource {
+        override val label get() = title
     }
 }
 

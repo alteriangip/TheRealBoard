@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Dashboard
-import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.DynamicFeed
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -37,7 +39,11 @@ import com.refboard.app.ui.BoardDetailScreen
 import com.refboard.app.ui.BoardsScreen
 import com.refboard.app.ui.DebugScreen
 import com.refboard.app.ui.ExploreScreen
-import com.refboard.app.ui.ExploreViewModel
+import com.refboard.app.ui.FeedViewModel
+import com.refboard.app.ui.FeedScreen
+import com.refboard.app.ui.CategoriesScreen
+import com.refboard.app.ui.BrowseScreen
+import com.refboard.app.data.FeedSource
 import com.refboard.app.ui.GalleryScreen
 import com.refboard.app.ui.RefBoardTheme
 import com.refboard.app.ui.Session
@@ -71,8 +77,11 @@ class MainActivity : ComponentActivity() {
 }
 
 private object Routes {
+    const val FEED = "feed"
     const val EXPLORE = "explore"
+    const val CATEGORIES = "categories"
     const val BOARDS = "boards"
+    const val BROWSE = "browse?name={name}&url={url}"
     const val GALLERY = "gallery?url={url}"
     const val VIEWER = "viewer?gallery={gallery}&timer={timer}"
     const val BOARD = "board/{id}"
@@ -81,12 +90,16 @@ private object Routes {
     fun gallery(url: String) = "gallery?url=${Uri.encode(url)}"
     fun viewer(showGallery: Boolean, timerSeconds: Int = 0) = "viewer?gallery=$showGallery&timer=$timerSeconds"
     fun board(id: String) = "board/$id"
+    fun browse(name: String, url: String) = "browse?name=${Uri.encode(name)}&url=${Uri.encode(url)}"
+
+    val tabs = listOf(FEED, EXPLORE, CATEGORIES, BOARDS)
 }
 
 @Composable
 private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
     val nav = rememberNavController()
-    val explore: ExploreViewModel = viewModel()
+    val explore: FeedViewModel = viewModel(key = "explore")
+    val feed: FeedViewModel = viewModel(key = "feed")
     val snackbar = remember { SnackbarHostState() }
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
@@ -122,13 +135,25 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
         contentWindowInsets = WindowInsets.navigationBars,
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            if (route == Routes.EXPLORE || route == Routes.BOARDS) {
+            if (route in Routes.tabs) {
                 NavigationBar {
+                    NavigationBarItem(
+                        selected = route == Routes.FEED,
+                        onClick = { nav.goTo(Routes.FEED) },
+                        icon = { Icon(Icons.Outlined.DynamicFeed, null) },
+                        label = { Text("Feed") },
+                    )
                     NavigationBarItem(
                         selected = route == Routes.EXPLORE,
                         onClick = { nav.goTo(Routes.EXPLORE) },
-                        icon = { Icon(Icons.Outlined.Explore, null) },
-                        label = { Text("Explore") },
+                        icon = { Icon(Icons.Outlined.Search, null) },
+                        label = { Text("Search") },
+                    )
+                    NavigationBarItem(
+                        selected = route == Routes.CATEGORIES,
+                        onClick = { nav.goTo(Routes.CATEGORIES) },
+                        icon = { Icon(Icons.Outlined.Category, null) },
+                        label = { Text("Categories") },
                     )
                     NavigationBarItem(
                         selected = route == Routes.BOARDS,
@@ -140,7 +165,36 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
             }
         },
     ) { padding ->
-        NavHost(nav, startDestination = Routes.EXPLORE, modifier = Modifier.padding(padding)) {
+        NavHost(nav, startDestination = Routes.FEED, modifier = Modifier.padding(padding)) {
+            composable(Routes.FEED) {
+                FeedScreen(
+                    vm = feed,
+                    onOpenGallery = { nav.navigate(Routes.gallery(it)) },
+                    onOpenViewer = { nav.navigate(Routes.viewer(true)) },
+                )
+            }
+            composable(Routes.CATEGORIES) {
+                CategoriesScreen(onOpen = { src ->
+                    if (src is FeedSource.Category) nav.navigate(Routes.browse(src.name, src.url))
+                })
+            }
+            composable(
+                Routes.BROWSE,
+                arguments = listOf(
+                    navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("url") { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { entry ->
+                BrowseScreen(
+                    source = FeedSource.Category(
+                        entry.arguments?.getString("name").orEmpty(),
+                        entry.arguments?.getString("url").orEmpty(),
+                    ),
+                    onBack = { nav.popBackStack() },
+                    onOpenGallery = { nav.navigate(Routes.gallery(it)) },
+                    onOpenViewer = { nav.navigate(Routes.viewer(true)) },
+                )
+            }
             composable(Routes.EXPLORE) {
                 ExploreScreen(
                     vm = explore,
@@ -198,11 +252,12 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
     }
 }
 
-/** Switch to a top-level tab, dropping anything stacked above it. */
+/** Switch to a top-level tab, keeping the other tabs' back stacks. */
 private fun NavHostController.goTo(route: String) {
     navigate(route) {
-        popUpTo(Routes.EXPLORE) { saveState = route != Routes.EXPLORE }
+        popUpTo(Routes.FEED) { saveState = true }
         launchSingleTop = true
+        // Search always opens on its results, e.g. after tapping a tag.
         restoreState = route != Routes.EXPLORE
     }
 }
