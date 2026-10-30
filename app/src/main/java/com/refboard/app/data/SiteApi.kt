@@ -40,14 +40,36 @@ object SiteApi {
 
     private val rows = ListSerializer(Row.serializer())
 
-    suspend fun categories(): List<Category> =
-        SiteParser.categories(get(SiteParser.ROOT + "/")).map {
-            Category(it.title.ifEmpty { it.href.removePrefix(SiteParser.ROOT).trim('/') },
-                it.href.removePrefix(SiteParser.ROOT).trim('/'), it.href, it.thumb)
-        }
+    @Serializable
+    private data class MenuEntry(val name: String = "", val link: String = "")
 
-    suspend fun tagsIndex(): List<TagEntry> =
-        SiteParser.tags(get(SiteParser.ROOT + "/tags/")).map { (name, slug) -> TagEntry(name, slug) }
+    private val menu = ListSerializer(MenuEntry.serializer())
+
+    /**
+     * Straight: the home page's category tiles, which come with images.
+     * Gay and trans: the site's category menu for that orientation, a mix
+     * of categories and tags without images (the screen fetches samples).
+     */
+    suspend fun categories(o: Orientation): List<Category> {
+        if (o == Orientation.Straight) {
+            return SiteParser.categories(get(SiteParser.ROOT + "/")).map {
+                val slug = it.href.removePrefix(SiteParser.ROOT).trim('/')
+                Category(it.title.ifEmpty { slug }, slug, it.href, it.thumb)
+            }
+        }
+        val body = get(
+            "${SiteParser.ROOT}/categories-menu?lang=en&orientation=${o.menuCode}&limit=1000",
+            accept = "application/json",
+        )
+        return json.decodeFromString(menu, body).mapNotNull { e ->
+            val url = SiteParser.abs(e.link) ?: return@mapNotNull null
+            if (e.name.isBlank()) return@mapNotNull null
+            Category(SiteParser.unescape(e.name.trim()), url.removePrefix(SiteParser.ROOT).trim('/'), url, null)
+        }.distinctBy { it.url }
+    }
+
+    suspend fun tagsIndex(o: Orientation): List<TagEntry> =
+        SiteParser.tags(get(o.url("tags/"))).map { (name, slug) -> TagEntry(name, slug) }
 
     /** First gallery thumbnail on a tag page, or null. */
     suspend fun tagSample(url: String): String? = sampleLimit.withPermit {
@@ -67,7 +89,7 @@ object SiteApi {
         }
         if (offset == 0) {
             val items = SiteParser.galleryTiles(get(url)).map { it.toFeedItem() }
-            val single = url.removePrefix(SiteParser.ROOT).trim('/') in listings
+            val single = url.trimEnd('/').substringAfterLast('/') in listings
             // Listing pages have only one page of results.
             return ListingPage(items, done = single || items.size < 10, next = items.size)
         }
@@ -115,10 +137,16 @@ object SiteApi {
 
     private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
 
-    private suspend fun get(url: String, referer: String? = null, json: Boolean = false): String {
+    private suspend fun get(
+        url: String,
+        referer: String? = null,
+        json: Boolean = false,
+        accept: String? = null,
+    ): String {
         val request = Request.Builder().url(url).apply {
             referer?.let { header("Referer", it) }
             if (json) header("Content-Type", "application/json")
+            accept?.let { header("Accept", it) }
         }.build()
         val response = Net.client.newCall(request).await()
         return withContext(Dispatchers.IO) {

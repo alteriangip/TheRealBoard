@@ -1,5 +1,6 @@
 package com.refboard.app.data
 
+import com.refboard.app.RefBoardApp
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -81,7 +82,9 @@ object Feeds {
         is FeedSource.Mix -> MixLoader(source.parts.map { loader(it) })
         is FeedSource.Url ->
             if (listingPath.matches(source.url)) SiteLoader(source.url) else GalleryDlLoader(source.url)
-        is FeedSource.Search, is FeedSource.Tag, is FeedSource.Category, is FeedSource.Listing ->
+        // The site's search has no orientation filter, so add its word.
+        is FeedSource.Search -> SiteLoader(Bridge.searchUrl(withOrientation(source.query)))
+        is FeedSource.Tag, is FeedSource.Category, is FeedSource.Listing ->
             SiteLoader(Bridge.urlFor(source))
     }
 
@@ -89,9 +92,24 @@ object Feeds {
      * "For you": the tags you pin most and your recent searches, topped up
      * with a few site categories. [seed] changes the mix on refresh.
      */
-    fun forYou(boards: List<Board>, recent: List<String>, categories: List<Category>, seed: Long): FeedSource {
+    private fun withOrientation(query: String): String {
+        val word = RefBoardApp.prefs.orientation.value.searchWord ?: return query
+        return if (query.contains(word, ignoreCase = true)) query else "$word $query"
+    }
+
+    fun forYou(
+        boards: List<Board>,
+        recent: List<String>,
+        categories: List<Category>,
+        orientation: Orientation,
+        seed: Long,
+    ): FeedSource {
         val byName = categories.associateBy { it.name.lowercase() }
         val parts = LinkedHashMap<String, FeedSource>()
+        // Gay and trans have a main gallery feed of their own; always include it.
+        if (orientation != Orientation.Straight) {
+            parts[orientation.url()] = FeedSource.Category(orientation.label, orientation.url())
+        }
         boards.flatMap { it.pins }.flatMap { it.tags }
             .groupingBy { it }.eachCount()
             .entries.sortedByDescending { it.value }
@@ -106,7 +124,7 @@ object Feeds {
         categories.shuffled(random).take((4 - parts.size).coerceAtLeast(1)).forEach {
             parts.putIfAbsent(it.url, FeedSource.Category(it.name, it.url))
         }
-        if (parts.isEmpty()) return FeedSource.Listing("popular", "Popular")
+        if (parts.isEmpty()) return FeedSource.Listing("popular", "Popular", orientation)
         return FeedSource.Mix("For you", parts.values.shuffled(random))
     }
 }

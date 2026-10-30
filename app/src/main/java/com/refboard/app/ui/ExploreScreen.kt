@@ -27,7 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Search
@@ -77,7 +77,7 @@ fun ExploreScreen(
     vm: FeedViewModel,
     onOpenGallery: (String) -> Unit,
     onOpenViewer: () -> Unit,
-    onOpenDebug: () -> Unit,
+    onOpenMenu: () -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val focus = LocalFocusManager.current
@@ -120,7 +120,7 @@ fun ExploreScreen(
                 }),
                 modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
             )
-            IconButton(onClick = onOpenDebug) { Icon(Icons.Outlined.BugReport, "Debug") }
+            IconButton(onClick = onOpenMenu) { Icon(Icons.Outlined.Menu, "Menu") }
         }
 
         if (source == null) {

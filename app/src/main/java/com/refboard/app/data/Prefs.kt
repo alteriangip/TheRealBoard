@@ -4,10 +4,20 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Recent searches, newest first. */
+/** Recent searches (newest first) and the chosen content orientation. */
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("refboard", Context.MODE_PRIVATE)
     private val sep = "\u001F"
+
+    private val _orientation = MutableStateFlow(
+        Orientation.entries.firstOrNull { it.name == sp.getString("orientation", null) } ?: Orientation.Straight
+    )
+    val orientation: StateFlow<Orientation> = _orientation
+
+    fun setOrientation(o: Orientation) {
+        _orientation.value = o
+        sp.edit().putString("orientation", o.name).apply()
+    }
 
     private val _recent = MutableStateFlow(
         sp.getString("recent", "")!!.split(sep).filter { it.isNotBlank() }

@@ -113,7 +113,11 @@ sealed interface FeedSource {
     }
 
     /** One of the site's single-page listings: popular, recent, rating… */
-    data class Listing(val kind: String, val title: String) : FeedSource {
+    data class Listing(
+        val kind: String,
+        val title: String,
+        val orientation: Orientation = Orientation.Straight,
+    ) : FeedSource {
         override val label get() = title
     }
 
@@ -133,4 +137,26 @@ object Thumbs {
      */
     fun small(url: String): String =
         sizeSegment.replace(url) { m -> "${m.groupValues[1]}/460/" }
+}
+
+/**
+ * Which part of the site to browse. The site keeps separate categories,
+ * tags and listings for each, under a path prefix.
+ */
+enum class Orientation(
+    val label: String,
+    /** Path prefix on the site ("" for straight). */
+    val path: String,
+    /** The site's own code for its category menu. */
+    val menuCode: Int,
+    /** Added to searches, since the site's search has no orientation filter. */
+    val searchWord: String?,
+) {
+    Straight("Straight", "", 3, null),
+    Gay("Gay", "gay", 1, "gay"),
+    Trans("Trans", "shemale", 2, "shemale");
+
+    /** A site page for this orientation, e.g. url("popular/"). */
+    fun url(page: String = ""): String =
+        SiteParser.ROOT + "/" + (if (path.isEmpty()) "" else "$path/") + page
 }

@@ -29,17 +29,18 @@ object Catalog {
     private val json = Json { ignoreUnknownKeys = true }
     private lateinit var dir: File
 
-    private val _categories = MutableStateFlow<List<Category>>(emptyList())
-    val categories: StateFlow<List<Category>> = _categories
-    private val _tags = MutableStateFlow<List<TagEntry>>(emptyList())
-    val tags: StateFlow<List<TagEntry>> = _tags
-    /** Tag slug -> sample image. */
+    /** Lists per orientation; a screen shows the one for the current setting. */
+    private val _categories = MutableStateFlow<Map<Orientation, List<Category>>>(emptyMap())
+    val categories: StateFlow<Map<Orientation, List<Category>>> = _categories
+    private val _tags = MutableStateFlow<Map<Orientation, List<TagEntry>>>(emptyMap())
+    val tags: StateFlow<Map<Orientation, List<TagEntry>>> = _tags
+    /** Page link (tag or category) -> sample image. */
     private val _samples = MutableStateFlow<Map<String, String>>(emptyMap())
     val samples: StateFlow<Map<String, String>> = _samples
 
     private val categoriesLock = Mutex()
     private val tagsLock = Mutex()
-    private val samplesFile get() = File(dir, "tag_samples.json")
+    private val samplesFile get() = File(dir, "samples.json")
     private val sampleMap = MapSerializer(String.serializer(), String.serializer())
 
     fun start(context: Context, scope: CoroutineScope) {
@@ -47,7 +48,7 @@ object Catalog {
         scope.launch(Dispatchers.IO) {
             runCatching { json.decodeFromString(sampleMap, samplesFile.readText()) }
                 .getOrNull()?.let { saved -> _samples.update { saved + it } }
-            // Save at most every few seconds while tags are scrolling by.
+            // Save at most every few seconds while tiles are scrolling by.
             _samples.drop(1).collect {
                 runCatching { writeAtomic(samplesFile, json.encodeToString(sampleMap, it)) }
                 delay(3000)
@@ -55,35 +56,36 @@ object Catalog {
         }
     }
 
-    suspend fun loadCategories(force: Boolean = false): List<Category> = categoriesLock.withLock {
-        load(force, _categories, "categories.json", Category.serializer()) { SiteApi.categories() }
+    suspend fun loadCategories(o: Orientation, force: Boolean = false): List<Category> = categoriesLock.withLock {
+        load(force, _categories, o, "categories-${o.name}.json", Category.serializer()) { SiteApi.categories(o) }
     }
 
-    suspend fun loadTags(force: Boolean = false): List<TagEntry> = tagsLock.withLock {
-        load(force, _tags, "tags.json", TagEntry.serializer()) { SiteApi.tagsIndex() }
+    suspend fun loadTags(o: Orientation, force: Boolean = false): List<TagEntry> = tagsLock.withLock {
+        load(force, _tags, o, "tags-${o.name}.json", TagEntry.serializer()) { SiteApi.tagsIndex(o) }
     }
 
-    /** Fetches a tag's sample image unless it is known. Cancel it when the tag scrolls away. */
-    suspend fun loadSample(tag: TagEntry) {
-        if (tag.slug in _samples.value) return
-        val url = runCatching { SiteApi.tagSample(tag.url) }.getOrNull() ?: return
-        _samples.update { it + (tag.slug to url) }
+    /** Fetches a sample image for a tag or category page unless it is known. Cancel it when the tile scrolls away. */
+    suspend fun loadSample(pageUrl: String) {
+        if (pageUrl in _samples.value) return
+        val url = runCatching { SiteApi.tagSample(pageUrl) }.getOrNull() ?: return
+        _samples.update { it + (pageUrl to url) }
     }
 
-    fun categoryNamed(name: String): Category? =
-        _categories.value.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    fun categoryNamed(name: String, o: Orientation): Category? =
+        _categories.value[o]?.firstOrNull { it.name.equals(name, ignoreCase = true) }
 
     @Serializable
     private data class Saved<T>(val savedAt: Long, val items: List<T>)
 
     private suspend fun <T> load(
         force: Boolean,
-        state: MutableStateFlow<List<T>>,
+        state: MutableStateFlow<Map<Orientation, List<T>>>,
+        o: Orientation,
         fileName: String,
         item: KSerializer<T>,
         fetch: suspend () -> List<T>,
     ): List<T> {
-        if (!force && state.value.isNotEmpty()) return state.value
+        state.value[o]?.takeIf { !force && it.isNotEmpty() }?.let { return it }
         val file = File(dir, fileName)
         val savedSerializer = Saved.serializer(item)
         val saved = withContext(Dispatchers.IO) {
@@ -91,13 +93,13 @@ object Catalog {
         }
         val fresh = saved != null && System.currentTimeMillis() - saved.savedAt < MAX_AGE
         if (saved != null && fresh && !force) {
-            state.value = saved.items
+            state.update { it + (o to saved.items) }
             return saved.items
         }
         return try {
             val items = fetch()
             if (items.isNotEmpty()) {
-                state.value = items
+                state.update { it + (o to items) }
                 withContext(Dispatchers.IO) {
                     runCatching {
                         writeAtomic(file, json.encodeToString(savedSerializer, Saved(System.currentTimeMillis(), items)))
@@ -108,7 +110,7 @@ object Catalog {
         } catch (e: Exception) {
             // Offline or the site changed: fall back to the last copy.
             if (saved != null) {
-                state.value = saved.items
+                state.update { it + (o to saved.items) }
                 saved.items
             } else throw e
         }

@@ -27,6 +27,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.refboard.app.ui.AppMenu
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.DrawerValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -103,6 +112,20 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
     val snackbar = remember { SnackbarHostState() }
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val orientation by RefBoardApp.prefs.orientation.collectAsState()
+    var shownOrientation by rememberSaveable { mutableStateOf(orientation) }
+    val openMenu: () -> Unit = { scope.launch { drawer.open() } }
+
+    // Switching content reloads the feeds that depend on it.
+    LaunchedEffect(orientation) {
+        if (orientation != shownOrientation) {
+            shownOrientation = orientation
+            feed.orientationChanged(orientation)
+            explore.orientationChanged(orientation)
+        }
+    }
 
     LaunchedEffect(Unit) {
         Session.messages.collect { msg ->
@@ -131,6 +154,24 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
         nav.goTo(Routes.EXPLORE)
     }
 
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        // Only on the tabs, so it doesn't fight the viewer's swipes.
+        gesturesEnabled = drawer.isOpen || route in Routes.tabs,
+        drawerContent = {
+            AppMenu(
+                orientation = orientation,
+                onOrientation = { o ->
+                    RefBoardApp.prefs.setOrientation(o)
+                    scope.launch { drawer.close() }
+                },
+                onOpenDebug = {
+                    scope.launch { drawer.close() }
+                    nav.navigate(Routes.DEBUG)
+                },
+            )
+        },
+    ) {
     Scaffold(
         contentWindowInsets = WindowInsets.navigationBars,
         snackbarHost = { SnackbarHost(snackbar) },
@@ -171,12 +212,16 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                     vm = feed,
                     onOpenGallery = { nav.navigate(Routes.gallery(it)) },
                     onOpenViewer = { nav.navigate(Routes.viewer(true)) },
+                    onOpenMenu = openMenu,
                 )
             }
             composable(Routes.CATEGORIES) {
-                CategoriesScreen(onOpen = { src ->
-                    if (src is FeedSource.Category) nav.navigate(Routes.browse(src.name, src.url))
-                })
+                CategoriesScreen(
+                    onOpen = { src ->
+                        if (src is FeedSource.Category) nav.navigate(Routes.browse(src.name, src.url))
+                    },
+                    onOpenMenu = openMenu,
+                )
             }
             composable(
                 Routes.BROWSE,
@@ -200,7 +245,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                     vm = explore,
                     onOpenGallery = { nav.navigate(Routes.gallery(it)) },
                     onOpenViewer = { nav.navigate(Routes.viewer(true)) },
-                    onOpenDebug = { nav.navigate(Routes.DEBUG) },
+                    onOpenMenu = openMenu,
                 )
             }
             composable(Routes.BOARDS) {
@@ -249,6 +294,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                 DebugScreen(onBack = { nav.popBackStack() })
             }
         }
+    }
     }
 }
 

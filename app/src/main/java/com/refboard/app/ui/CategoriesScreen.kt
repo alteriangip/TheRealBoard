@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,31 +59,40 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.refboard.app.RefBoardApp
 import com.refboard.app.data.Catalog
 import com.refboard.app.data.FeedSource
 import com.refboard.app.data.TagEntry
 
 /** Every category with its sample image, and every tag on the site. */
 @Composable
-fun CategoriesScreen(onOpen: (FeedSource) -> Unit) {
+fun CategoriesScreen(onOpen: (FeedSource) -> Unit, onOpenMenu: () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var filter by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
-    val categories by Catalog.categories.collectAsState()
-    val tags by Catalog.tags.collectAsState()
+    val orientation by RefBoardApp.prefs.orientation.collectAsState()
+    val allCategories by Catalog.categories.collectAsState()
+    val allTags by Catalog.tags.collectAsState()
+    val categories = allCategories[orientation].orEmpty()
+    val tags = allTags[orientation].orEmpty()
     val samples by Catalog.samples.collectAsState()
 
-    LaunchedEffect(tab, attempt) {
+    LaunchedEffect(tab, attempt, orientation) {
         error = null
-        runCatching { if (tab == 0) Catalog.loadCategories(force = attempt > 0) else Catalog.loadTags(force = attempt > 0) }
-            .onFailure { error = it.message ?: "Couldn't load" }
+        runCatching {
+            if (tab == 0) Catalog.loadCategories(orientation, force = attempt > 0)
+            else Catalog.loadTags(orientation, force = attempt > 0)
+        }.onFailure { error = it.message ?: "Couldn't load" }
     }
 
     Column(Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = tab, modifier = Modifier.statusBarsPadding()) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Categories") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Tags") })
+        Row(Modifier.statusBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onOpenMenu) { Icon(Icons.Outlined.Menu, "Menu") }
+            TabRow(selectedTabIndex = tab, modifier = Modifier.weight(1f)) {
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Categories") })
+                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Tags") })
+            }
         }
         TextField(
             value = filter,
@@ -114,7 +125,11 @@ fun CategoriesScreen(onOpen: (FeedSource) -> Unit) {
                 }
                 TileGrid(empty = shown.isEmpty()) {
                     items(shown, key = { it.url }) { cat ->
-                        NamedTile(cat.name, cat.thumb) { onOpen(FeedSource.Category(cat.name, cat.url)) }
+                        // Gay and trans categories come without images: fetch one.
+                        if (cat.thumb == null) LaunchedEffect(cat.url) { Catalog.loadSample(cat.url) }
+                        NamedTile(cat.name, cat.thumb ?: samples[cat.url]) {
+                            onOpen(FeedSource.Category(cat.name, cat.url))
+                        }
                     }
                 }
             }
@@ -126,8 +141,8 @@ fun CategoriesScreen(onOpen: (FeedSource) -> Unit) {
                     items(shown, key = { it.slug }) { tag ->
                         // Load the sample while the tile is on screen; scrolling
                         // past cancels requests that haven't started yet.
-                        LaunchedEffect(tag.slug) { Catalog.loadSample(tag) }
-                        NamedTile(tag.name, samples[tag.slug]) { onOpen(tag.toSource()) }
+                        LaunchedEffect(tag.url) { Catalog.loadSample(tag.url) }
+                        NamedTile(tag.name, samples[tag.url]) { onOpen(tag.toSource()) }
                     }
                 }
             }

@@ -35,7 +35,7 @@ object Bridge {
         is FeedSource.Tag -> tagUrl(source.tag)
         is FeedSource.Url -> source.url
         is FeedSource.Category -> source.url
-        is FeedSource.Listing -> "${Net.ROOT}/${source.kind}/"
+        is FeedSource.Listing -> source.orientation.url("${source.kind}/")
         is FeedSource.Mix -> error("A mix has no single URL")
     }
 

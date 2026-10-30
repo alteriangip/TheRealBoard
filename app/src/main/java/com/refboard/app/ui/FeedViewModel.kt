@@ -53,7 +53,7 @@ class FeedViewModel : ViewModel() {
 
     /** Opens a tag, as its category page when the site has one by that name. */
     fun openTag(tag: String) {
-        val cat = Catalog.categoryNamed(tag)
+        val cat = Catalog.categoryNamed(tag, RefBoardApp.prefs.orientation.value)
         open(if (cat != null) FeedSource.Category(cat.name, cat.url) else FeedSource.Tag(tag))
     }
 
@@ -70,16 +70,28 @@ class FeedViewModel : ViewModel() {
         val gen = ++generation
         loading = true
         viewModelScope.launch {
-            val categories = runCatching { Catalog.loadCategories() }.getOrDefault(emptyList())
+            val orientation = RefBoardApp.prefs.orientation.value
+            val categories = runCatching { Catalog.loadCategories(orientation) }.getOrDefault(emptyList())
             if (gen != generation) return@launch
             open(
                 Feeds.forYou(
                     boards = RefBoardApp.boards.boards.value,
                     recent = RefBoardApp.prefs.recent.value,
                     categories = categories,
+                    orientation = orientation,
                     seed = System.currentTimeMillis(),
                 ),
             )
+        }
+    }
+
+    /** Re-shows the current feed for a new content setting. */
+    fun orientationChanged(o: com.refboard.app.data.Orientation) {
+        when (val s = source) {
+            is FeedSource.Listing -> open(s.copy(orientation = o))
+            is FeedSource.Mix, null -> openForYou(fresh = true)
+            is FeedSource.Search -> open(s)
+            else -> Unit
         }
     }
 
