@@ -83,10 +83,7 @@ class GalleryViewModel(private val url: String) : ViewModel() {
         error = null
         viewModelScope.launch {
             runCatching { Bridge.gallery(url) }
-                .onSuccess {
-                    data = it
-                    prefetch(it.images.take(40).map { img -> img.thumb ?: Thumbs.small(img.url) })
-                }
+                .onSuccess { data = it }
                 .onFailure { error = it.message ?: "Couldn't open gallery" }
         }
     }

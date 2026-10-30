@@ -166,7 +166,9 @@ class FeedViewModel : ViewModel() {
         val fresh = page.items.filter { seen.add(it.url) }
         items.addAll(fresh)
         done = page.done
-        prefetch(fresh.mapNotNull { it.thumb?.let(Thumbs::small) })
+        // Only the start of the page: the grid fetches the rest as it scrolls,
+        // and every extra request counts against the site's limit.
+        prefetch(fresh.take(8).mapNotNull { it.thumb?.let(Thumbs::small) })
     }
 
     fun resolveCover(galleryUrl: String) {

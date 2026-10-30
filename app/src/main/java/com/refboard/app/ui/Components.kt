@@ -44,6 +44,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import coil.network.HttpException
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableIntStateOf
 import com.refboard.app.data.Favorite
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.StarBorder
@@ -83,7 +90,18 @@ fun RemoteImage(
     ratio: Float? = null,
 ) {
     var useFallback by remember(primary) { mutableStateOf(false) }
-    val model = if (useFallback) fallback else primary
+    var retries by remember(primary) { mutableIntStateOf(0) }
+    val url = if (useFallback) fallback else primary
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // A changed "retry" parameter makes Coil try again; it isn't part of the cache key.
+    val model = remember(url, retries) {
+        url?.let {
+            ImageRequest.Builder(context).data(it)
+                .setParameter("retry", retries, memoryCacheKey = null)
+                .build()
+        }
+    }
     val known = ratio ?: ImageRatios.get(primary)
     var measured by remember(primary) { mutableStateOf<Float?>(null) }
     val shape = known ?: measured
@@ -113,8 +131,20 @@ fun RemoteImage(
                 if (known == null) measured = r
             }
         },
-        onError = {
-            if (!useFallback && fallback != null && fallback != primary) useFallback = true
+        onError = { state ->
+            val code = (state.result.throwable as? HttpException)?.response?.code
+            when {
+                // The small copy doesn't exist: use the full image instead.
+                (code == 404 || code == 410) && !useFallback && fallback != null && fallback != primary ->
+                    useFallback = true
+                // Anything else (usually the site limiting requests, or a network
+                // blip): try the same small copy again shortly, rather than
+                // asking for the much bigger full image.
+                retries < 4 -> scope.launch {
+                    delay(4_000L * (retries + 1))
+                    retries++
+                }
+            }
         },
         modifier = modifier.then(sized),
     )

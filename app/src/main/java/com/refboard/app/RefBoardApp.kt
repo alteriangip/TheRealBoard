@@ -13,6 +13,7 @@ import com.refboard.app.data.Downloader
 import com.refboard.app.data.FavoritesStore
 import com.refboard.app.data.Net
 import com.refboard.app.data.Prefs
+import com.refboard.app.ui.Session
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +29,10 @@ class RefBoardApp : Application(), ImageLoaderFactory {
         prefs = Prefs(this)
         favorites = FavoritesStore(this, appScope)
         Catalog.start(this, appScope)
+        Net.onThrottled = { until ->
+            val secs = ((until - System.currentTimeMillis()) / 1000).coerceAtLeast(1)
+            Session.toast("The site is limiting requests. Images will load again in about ${secs}s.")
+        }
         // Python (gallery-dl) is only needed for some pages; warm it up off
         // the main thread so it doesn't delay the first screen.
         appScope.launch(Dispatchers.IO) { startPython() }
@@ -42,7 +47,8 @@ class RefBoardApp : Application(), ImageLoaderFactory {
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("images"))
-                    .maxSizeBytes(300L * 1024 * 1024)
+                    // Bigger, so images seen before come from the phone, not the site.
+                    .maxSizeBytes(800L * 1024 * 1024)
                     .build()
             }
             .respectCacheHeaders(false)

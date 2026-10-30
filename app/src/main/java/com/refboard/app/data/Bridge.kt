@@ -51,12 +51,37 @@ object Bridge {
 
     suspend fun gallery(url: String): GalleryData {
         galleryCache.get(url)?.let { return it }
+        readSaved(url)?.let {
+            galleryCache.put(url, it)
+            return it
+        }
         val direct = if (SiteApi.isSiteGallery(url)) runCatching { SiteApi.gallery(url) }.getOrNull() else null
         val data = direct ?: io {
             json.decodeFromString(GalleryData.serializer(), py.callAttr("gallery", url).toString())
         }
         galleryCache.put(url, data)
+        save(url, data)
         return data
+    }
+
+    // Galleries don't change once posted, so opened ones are kept on disk
+    // for a while: reopening one, or pinning it later, needs no request.
+    private const val SAVED_DAYS = 14L
+    private val savedDir by lazy { java.io.File(RefBoardApp.instance.cacheDir, "galleries").apply { mkdirs() } }
+
+    private fun savedFile(url: String) = java.io.File(savedDir, Integer.toHexString(url.hashCode()) + "-" + url.length + ".json")
+
+    private suspend fun readSaved(url: String): GalleryData? = withContext(Dispatchers.IO) {
+        val file = savedFile(url)
+        val fresh = file.exists() && System.currentTimeMillis() - file.lastModified() < SAVED_DAYS * 86_400_000L
+        if (!fresh) return@withContext null
+        runCatching { json.decodeFromString(GalleryData.serializer(), file.readText()) }
+            .getOrNull()?.takeIf { it.url == url && it.images.isNotEmpty() }
+    }
+
+    private suspend fun save(url: String, data: GalleryData) = withContext(Dispatchers.IO) {
+        if (data.images.isEmpty()) return@withContext
+        runCatching { savedFile(url).writeText(json.encodeToString(GalleryData.serializer(), data)) }
     }
 
     fun cachedGallery(url: String): GalleryData? = galleryCache.get(url)
