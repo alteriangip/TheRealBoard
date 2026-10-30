@@ -13,27 +13,35 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
 
-/** A model or channel you follow. */
+/**
+ * A bookmark to a model, channel, category or tag. Only the name and link
+ * are kept; opening it loads the newest galleries from the site.
+ */
 @Serializable
 data class Favorite(
-    /** [MODEL] or [CHANNEL]. */
+    /** [MODEL], [CHANNEL] or [TOPIC]. */
     val kind: String,
     val name: String,
     val addedAt: Long = System.currentTimeMillis(),
-    /** Thumbnail of their newest gallery, fetched once and remembered. */
+    /** Thumbnail of the newest gallery, fetched once and remembered. */
     val cover: String? = null,
+    /** The page to open; for categories and tags. */
+    val link: String? = null,
 ) {
     val key get() = key(kind, name)
 
     /**
-     * Their galleries. Like gallery-dl, this searches by name: the site's
-     * own model and channel pages can't be paged past the first 20.
+     * The galleries to show. Models and channels are searched by name like
+     * gallery-dl does: the site's own pages for them can't be paged past
+     * the first 20. Categories and tags open their own page.
      */
-    val url get() = SiteParser.searchUrl(name)
+    val url get() = link ?: SiteParser.searchUrl(name)
 
     companion object {
         const val MODEL = "model"
         const val CHANNEL = "channel"
+        /** Categories and tags, kept together. */
+        const val TOPIC = "topic"
         fun key(kind: String, name: String) = "$kind:${name.trim().lowercase()}"
     }
 }
@@ -65,17 +73,30 @@ class FavoritesStore(context: Context, scope: CoroutineScope) {
     fun isFavorite(kind: String, name: String) = _favorites.value.any { it.key == Favorite.key(kind, name) }
 
     /** Adds or removes; returns true if it is now a favourite. */
-    fun toggle(kind: String, name: String): Boolean {
+    fun toggle(kind: String, name: String, link: String? = null): Boolean {
         val key = Favorite.key(kind, name)
         var added = false
         _favorites.update { list ->
             if (list.any { it.key == key }) list.filterNot { it.key == key }
             else {
                 added = true
-                listOf(Favorite(kind, name.trim())) + list
+                listOf(Favorite(kind, name.trim(), link = link)) + list
             }
         }
         return added
+    }
+
+    /** The favourite that opens [url], if any (whatever its kind). */
+    fun forUrl(url: String): Favorite? = _favorites.value.firstOrNull { it.url == url }
+
+    /** Stars or unstars a page by its link; new ones are saved as categories/tags. */
+    fun toggleUrl(name: String, url: String): Boolean {
+        val existing = forUrl(url)
+        if (existing != null) {
+            remove(existing)
+            return false
+        }
+        return toggle(Favorite.TOPIC, name, url)
     }
 
     fun remove(fav: Favorite) = _favorites.update { list -> list.filterNot { it.key == fav.key } }

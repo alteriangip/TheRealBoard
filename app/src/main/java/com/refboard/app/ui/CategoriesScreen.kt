@@ -50,6 +50,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -127,7 +131,7 @@ fun CategoriesScreen(onOpen: (FeedSource) -> Unit, onOpenMenu: () -> Unit) {
                     items(shown, key = { it.url }) { cat ->
                         // Gay and trans categories come without images: fetch one.
                         if (cat.thumb == null) LaunchedEffect(cat.url) { Catalog.loadSample(cat.url) }
-                        NamedTile(cat.name, cat.thumb ?: samples[cat.url]) {
+                        NamedTile(cat.name, cat.thumb ?: samples[cat.url], url = cat.url) {
                             onOpen(FeedSource.Category(cat.name, cat.url))
                         }
                     }
@@ -142,7 +146,7 @@ fun CategoriesScreen(onOpen: (FeedSource) -> Unit, onOpenMenu: () -> Unit) {
                         // Load the sample while the tile is on screen; scrolling
                         // past cancels requests that haven't started yet.
                         LaunchedEffect(tag.url) { Catalog.loadSample(tag.url) }
-                        NamedTile(tag.name, samples[tag.url]) { onOpen(tag.toSource()) }
+                        NamedTile(tag.name, samples[tag.url], url = tag.url) { onOpen(tag.toSource()) }
                     }
                 }
             }
@@ -174,12 +178,23 @@ private fun TileGrid(
 }
 
 /** Sample image with the name on a dark gradient, like the site's category tiles. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun NamedTile(name: String, image: String?, onClick: () -> Unit) {
+private fun NamedTile(name: String, image: String?, url: String? = null, onClick: () -> Unit) {
+    val favorites by RefBoardApp.favorites.favorites.collectAsState()
+    val starred = url != null && favorites.any { it.url == url }
     Box(
         Modifier.fillMaxWidth().aspectRatio(0.72f).clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = url?.let {
+                    {
+                        val added = RefBoardApp.favorites.toggleUrl(name, it)
+                        Session.toast(if (added) "Added $name to Favourites" else "Removed $name from Favourites")
+                    }
+                },
+            ),
     ) {
         if (image != null) {
             RemoteImage(
@@ -209,6 +224,13 @@ private fun NamedTile(name: String, image: String?, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (starred) {
+            Icon(
+                Icons.Filled.Star, "In favourites",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(20.dp),
+            )
+        }
     }
 }
 
@@ -230,6 +252,21 @@ fun BrowseScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
                 title = { Text(vm.source?.label ?: source.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                actions = {
+                    if (source is FeedSource.Category) {
+                        val favorites by RefBoardApp.favorites.favorites.collectAsState()
+                        val starred = favorites.any { it.url == source.url }
+                        IconButton(onClick = {
+                            val added = RefBoardApp.favorites.toggleUrl(source.name, source.url)
+                            Session.toast(if (added) "Added ${source.name} to Favourites" else "Removed from Favourites")
+                        }) {
+                            Icon(
+                                if (starred) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                if (starred) "Remove from favourites" else "Add to favourites",
+                            )
+                        }
+                    }
+                },
             )
         },
     ) { padding ->

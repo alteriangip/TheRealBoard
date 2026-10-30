@@ -139,9 +139,15 @@ fun TagRow(
     }
 }
 
-/** Model or channel chips with a star to follow them in Favourites. */
+/** Chips with a star to bookmark them in Favourites. */
 @Composable
-fun FavoriteChipRow(names: List<String>, kind: String, onOpen: (String) -> Unit) {
+fun FavoriteChipRow(
+    names: List<String>,
+    kind: String,
+    onOpen: (String) -> Unit,
+    /** The page a category/tag favourite opens; models and channels don't need one. */
+    linkFor: ((String) -> String)? = null,
+) {
     val favorites by RefBoardApp.favorites.favorites.collectAsState()
     val keys = remember(favorites) { favorites.mapTo(HashSet()) { it.key } }
     LazyRow(
@@ -159,7 +165,7 @@ fun FavoriteChipRow(names: List<String>, kind: String, onOpen: (String) -> Unit)
                         if (starred) Icons.Filled.Star else Icons.Outlined.StarBorder,
                         if (starred) "Remove from favourites" else "Add to favourites",
                         Modifier.size(20.dp).clip(CircleShape).clickable {
-                            val added = RefBoardApp.favorites.toggle(kind, name)
+                            val added = RefBoardApp.favorites.toggle(kind, name, linkFor?.invoke(name))
                             Session.toast(if (added) "Added $name to Favourites" else "Removed $name from Favourites")
                         },
                     )

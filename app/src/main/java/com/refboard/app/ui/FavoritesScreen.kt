@@ -23,10 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DynamicFeed
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,7 +57,7 @@ import com.refboard.app.data.Favorite
 import com.refboard.app.data.FeedSource
 import com.refboard.app.data.SiteApi
 
-/** Models and channels you follow, plus a feed mixing their newest galleries. */
+/** Bookmarked models, channels and categories/tags, each with a "latest" feed. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FavoritesScreen(
@@ -63,9 +66,10 @@ fun FavoritesScreen(
     onOpenMenu: () -> Unit,
 ) {
     val favorites by RefBoardApp.favorites.favorites.collectAsState()
-    var filter by rememberSaveable { mutableStateOf<String?>(null) }
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     var removing by remember { mutableStateOf<Favorite?>(null) }
-    val shown = remember(favorites, filter) { favorites.filter { filter == null || it.kind == filter } }
+    val kind = favoriteTabs[tab].first
+    val shown = remember(favorites, kind) { favorites.filter { it.kind == kind } }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -76,28 +80,22 @@ fun FavoritesScreen(
             Text("Favourites", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
         }
 
-        if (favorites.isEmpty()) {
-            CenterMessage(
-                "No favourites yet. Open a gallery and tap the ☆ next to a model or channel to follow them here.",
-            )
-            return
+        TabRow(selectedTabIndex = tab) {
+            favoriteTabs.forEachIndexed { i, (_, label) ->
+                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(label) })
+            }
         }
 
-        Row(
-            Modifier.padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            FilterChip(selected = filter == null, onClick = { filter = null }, label = { Text("All") })
-            FilterChip(
-                selected = filter == Favorite.MODEL,
-                onClick = { filter = Favorite.MODEL },
-                label = { Text("Pornstars") },
+        if (shown.isEmpty()) {
+            CenterMessage(
+                if (kind == Favorite.TOPIC) {
+                    "No categories or tags yet. Tap ☆ on a category or tag page, long-press a tile in " +
+                        "the Categories tab, or tap ☆ on a gallery's tags."
+                } else {
+                    "None yet. Open a gallery and tap the ☆ next to a model or channel to bookmark them here."
+                },
             )
-            FilterChip(
-                selected = filter == Favorite.CHANNEL,
-                onClick = { filter = Favorite.CHANNEL },
-                label = { Text("Channels") },
-            )
+            return
         }
 
         LazyVerticalGrid(
@@ -109,11 +107,11 @@ fun FavoritesScreen(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "latest") {
                 FilledTonalButton(
-                    onClick = { onOpenLatest(filter) },
+                    onClick = { onOpenLatest(kind) },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(Icons.Outlined.DynamicFeed, null, Modifier.size(18.dp))
-                    Text("  Latest from ${if (filter == null) "favourites" else "these"}")
+                    Text("  Latest from these")
                 }
             }
             items(shown, key = { it.key }) { fav ->
@@ -148,6 +146,13 @@ fun FavoritesScreen(
         )
     }
 }
+
+/** Tabs: the favourite kind each shows, and its label. */
+private val favoriteTabs = listOf(
+    Favorite.MODEL to "Pornstars",
+    Favorite.CHANNEL to "Channels",
+    Favorite.TOPIC to "Categories & tags",
+)
 
 /**
  * Newest galleries across favourites. At most 6 are mixed at once (newest
@@ -191,13 +196,21 @@ private fun FavoriteTile(fav: Favorite, onClick: () -> Unit, onLongClick: () -> 
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    if (fav.kind == Favorite.CHANNEL) Icons.Outlined.Videocam else Icons.Outlined.Person,
+                    when (fav.kind) {
+                        Favorite.CHANNEL -> Icons.Outlined.Videocam
+                        Favorite.TOPIC -> Icons.Outlined.Tag
+                        else -> Icons.Outlined.Person
+                    },
                     null,
                     tint = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
-                    if (fav.kind == Favorite.CHANNEL) " Channel" else " Pornstar",
+                    when (fav.kind) {
+                        Favorite.CHANNEL -> " Channel"
+                        Favorite.TOPIC -> " Category / tag"
+                        else -> " Pornstar"
+                    },
                     color = Color.White.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.labelSmall,
                 )

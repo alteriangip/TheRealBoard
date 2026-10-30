@@ -60,7 +60,10 @@ import com.refboard.app.data.Board
 import com.refboard.app.data.Bridge
 import com.refboard.app.data.GalleryData
 import com.refboard.app.data.Pin
+import com.refboard.app.data.Catalog
 import com.refboard.app.data.Favorite
+import com.refboard.app.data.Orientation
+import com.refboard.app.data.SiteParser
 import com.refboard.app.data.Thumbs
 import com.refboard.app.data.ViewerImage
 import kotlinx.coroutines.launch
@@ -197,6 +200,14 @@ fun GalleryScreen(
                                 when (key) {
                                     "models" -> FavoriteChipRow(values, Favorite.MODEL, onOpen = onSearch)
                                     "channel" -> FavoriteChipRow(values, Favorite.CHANNEL, onOpen = onSearch)
+                                    "categories" -> FavoriteChipRow(values, Favorite.TOPIC, onOpen = onTag) { name ->
+                                        Catalog.categoryNamed(name, RefBoardApp.prefs.orientation.value)?.url
+                                            ?: Catalog.categoryNamed(name, Orientation.Straight)?.url
+                                            ?: SiteParser.searchUrl(name)
+                                    }
+                                    "tags" -> FavoriteChipRow(values, Favorite.TOPIC, onOpen = onTag) { name ->
+                                        SiteParser.tagUrl(name)
+                                    }
                                     else -> TagRow(values, onTag = onTag)
                                 }
                             }
