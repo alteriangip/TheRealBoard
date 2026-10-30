@@ -83,9 +83,11 @@ object SiteApi {
      */
     suspend fun listingPage(url: String, offset: Int): ListingPage {
         val query = SiteParser.searchQuery(url)
-        if (query != null) {
-            val params = "q=${enc(query)}&lang=en&limit=20&offset=$offset"
-            return jsonPage(get("${SiteParser.ROOT}/search/srch.php?$params", referer = url, json = true), offset)
+        if (query != null && offset > 0) return searchJson(query, offset, referer = url)
+        // Channel pages only have one HTML page; continue like gallery-dl, by name.
+        if (offset > 0 && "/channels/" in url) {
+            val name = url.trimEnd('/').substringAfterLast('/').replace('-', ' ')
+            return searchJson(name, offset - FIRST_PAGE, referer = url).let { it.copy(next = it.next + FIRST_PAGE) }
         }
         if (offset == 0) {
             val items = SiteParser.galleryTiles(get(url)).map { it.toFeedItem() }
@@ -95,6 +97,32 @@ object SiteApi {
         }
         val sep = if ('?' in url) '&' else '?'
         return jsonPage(get("$url${sep}limit=20&offset=$offset", referer = url, json = true), offset)
+    }
+
+    private const val FIRST_PAGE = 20
+
+    private suspend fun searchJson(query: String, offset: Int, referer: String): ListingPage {
+        val params = "q=${enc(query)}&lang=en&limit=20&offset=$offset"
+        return jsonPage(get("${SiteParser.ROOT}/search/srch.php?$params", referer = referer, json = true), offset)
+    }
+
+    /** Where a search lands, and its first page. */
+    class SearchStart(val url: String, val redirected: Boolean, val page: ListingPage)
+
+    /**
+     * Searches like the site's search box: a query that matches a tag,
+     * category or channel is sent to that page (e.g. "frottage" opens
+     * /tags/frottage/); anything else gets the site's own results page.
+     */
+    suspend fun startSearch(query: String): SearchStart {
+        val (finalUrl, body) = getFollowing(SiteParser.searchUrl(query))
+        val items = SiteParser.galleryTiles(body).map { it.toFeedItem() }
+        val redirected = SiteParser.searchQuery(finalUrl) == null
+        return SearchStart(
+            url = if (redirected) finalUrl else SiteParser.searchUrl(query),
+            redirected = redirected,
+            page = ListingPage(items, done = items.size < 10, next = items.size),
+        )
     }
 
     private fun jsonPage(body: String, offset: Int): ListingPage {
@@ -142,7 +170,15 @@ object SiteApi {
         referer: String? = null,
         json: Boolean = false,
         accept: String? = null,
-    ): String {
+    ): String = getFollowing(url, referer, json, accept).second
+
+    /** Fetches a page, following redirects; returns the final address and the body. */
+    private suspend fun getFollowing(
+        url: String,
+        referer: String? = null,
+        json: Boolean = false,
+        accept: String? = null,
+    ): Pair<String, String> {
         val request = Request.Builder().url(url).apply {
             referer?.let { header("Referer", it) }
             if (json) header("Content-Type", "application/json")
@@ -152,7 +188,7 @@ object SiteApi {
         return withContext(Dispatchers.IO) {
             response.use {
                 if (!it.isSuccessful) throw IOException("HTTP ${it.code} for $url")
-                it.body?.string() ?: ""
+                it.request.url.toString() to (it.body?.string() ?: "")
             }
         }
     }

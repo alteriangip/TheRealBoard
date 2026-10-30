@@ -111,6 +111,7 @@ class FeedViewModel : ViewModel() {
         loader = null
         items.clear()
         seen.clear()
+        emptyPages = 0
         done = false
         error = null
         loading = false
@@ -162,10 +163,20 @@ class FeedViewModel : ViewModel() {
         }
     }
 
+    private var emptyPages = 0
+
     private fun add(page: FeedPage) {
         val fresh = page.items.filter { seen.add(it.url) }
         items.addAll(fresh)
         done = page.done
+        // A page of only repeats adds nothing to scroll into, so the grid
+        // would never ask for more: fetch the next one ourselves (a few times).
+        if (fresh.isEmpty() && !page.done && emptyPages < 3) {
+            emptyPages++
+            viewModelScope.launch { loadMore() }
+        } else if (fresh.isNotEmpty()) {
+            emptyPages = 0
+        }
         // Only the start of the page: the grid fetches the rest as it scrolls,
         // and every extra request counts against the site's limit.
         prefetch(fresh.take(8).mapNotNull { it.thumb?.let(Thumbs::small) })

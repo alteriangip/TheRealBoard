@@ -13,16 +13,39 @@ interface FeedLoader {
 }
 
 /** Category, tag, search and listing pages read straight from the site (with thumbnails). */
-class SiteLoader(private val url: String) : FeedLoader {
+class SiteLoader(private val url: String, private var firstPage: ListingPage? = null) : FeedLoader {
     private var offset = 0
     private var done = false
 
     override suspend fun next(count: Int): FeedPage {
         if (done) return FeedPage(emptyList(), done = true)
-        val page = SiteApi.listingPage(url, offset)
+        val page = firstPage?.also { firstPage = null } ?: SiteApi.listingPage(url, offset)
         offset = page.next
         done = page.done
         return FeedPage(page.items, page.done)
+    }
+}
+
+/**
+ * A search, done the way the site's search box does it. If the words match
+ * a tag, category or channel, the site opens that page and so do we. In
+ * Gay/Trans mode, other searches get the orientation's word added, since
+ * the site's search can't filter by orientation.
+ */
+class SearchLoader(private val query: String, private val orientationWord: String?) : FeedLoader {
+    private var inner: FeedLoader? = null
+
+    override suspend fun next(count: Int): FeedPage {
+        inner?.let { return it.next(count) }
+        val start = SiteApi.startSearch(query)
+        val addWord = !start.redirected && orientationWord != null && !query.contains(orientationWord, ignoreCase = true)
+        val loader = if (addWord) {
+            SiteLoader(Bridge.searchUrl("$orientationWord $query"))
+        } else {
+            SiteLoader(start.url, firstPage = start.page)
+        }
+        inner = loader
+        return loader.next(count)
     }
 }
 
@@ -82,8 +105,8 @@ object Feeds {
         is FeedSource.Mix -> MixLoader(source.parts.map { loader(it) })
         is FeedSource.Url ->
             if (listingPath.matches(source.url)) SiteLoader(source.url) else GalleryDlLoader(source.url)
-        // The site's search has no orientation filter, so add its word.
-        is FeedSource.Search -> SiteLoader(Bridge.searchUrl(withOrientation(source.query)))
+        is FeedSource.Search ->
+            SearchLoader(source.query, RefBoardApp.prefs.orientation.value.searchWord)
         is FeedSource.Tag, is FeedSource.Category, is FeedSource.Listing ->
             SiteLoader(Bridge.urlFor(source))
     }
@@ -92,11 +115,6 @@ object Feeds {
      * "For you": the tags you pin most and your recent searches, topped up
      * with a few site categories. [seed] changes the mix on refresh.
      */
-    private fun withOrientation(query: String): String {
-        val word = RefBoardApp.prefs.orientation.value.searchWord ?: return query
-        return if (query.contains(word, ignoreCase = true)) query else "$word $query"
-    }
-
     fun forYou(
         boards: List<Board>,
         recent: List<String>,
