@@ -14,9 +14,11 @@ android {
         applicationId = "com.refboard.app"
         minSdk = 29
         targetSdk = 34
-        // CI builds count up, so each build installs as an update.
-        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
-        versionName = "0.2.0"
+        // Minutes since 2024 at build time: always higher than any earlier
+        // build, whichever repo or account built it, so every new APK
+        // installs as an update. (Run numbers restart in a new repo.)
+        versionCode = ((System.currentTimeMillis() / 1000 - 1_704_067_200L) / 60).toInt()
+        versionName = "0.3.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
