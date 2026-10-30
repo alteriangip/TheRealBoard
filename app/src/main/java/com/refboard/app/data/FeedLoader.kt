@@ -18,7 +18,7 @@ class SiteLoader(private val url: String) : FeedLoader {
 
     override suspend fun next(count: Int): FeedPage {
         if (done) return FeedPage(emptyList(), done = true)
-        val page = Bridge.listingPage(url, offset)
+        val page = SiteApi.listingPage(url, offset)
         offset = page.next
         done = page.done
         return FeedPage(page.items, page.done)
@@ -77,13 +77,12 @@ class MixLoader(parts: List<FeedLoader>) : FeedLoader {
 object Feeds {
     private val listingPath = Regex("""^${Regex.escape(Net.ROOT)}/(popular|recent|rating|likes|views|comments)/?$""")
 
-    suspend fun loader(source: FeedSource): FeedLoader = when (source) {
+    fun loader(source: FeedSource): FeedLoader = when (source) {
         is FeedSource.Mix -> MixLoader(source.parts.map { loader(it) })
         is FeedSource.Url ->
             if (listingPath.matches(source.url)) SiteLoader(source.url) else GalleryDlLoader(source.url)
-        is FeedSource.Search -> SiteLoader(Bridge.searchUrlAsync(source.query))
-        is FeedSource.Tag -> SiteLoader(Bridge.tagUrlAsync(source.tag))
-        is FeedSource.Category, is FeedSource.Listing -> SiteLoader(Bridge.urlFor(source))
+        is FeedSource.Search, is FeedSource.Tag, is FeedSource.Category, is FeedSource.Listing ->
+            SiteLoader(Bridge.urlFor(source))
     }
 
     /**

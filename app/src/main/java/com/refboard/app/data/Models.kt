@@ -9,6 +9,8 @@ data class FeedItem(
     val thumb: String? = null,
     val title: String = "",
     val tags: List<String> = emptyList(),
+    /** Thumbnail width / height when the site says, so tiles hold their shape while loading. */
+    val ratio: Float? = null,
 )
 
 @Serializable
@@ -47,6 +49,8 @@ data class TagEntry(
 data class GalleryImage(
     val url: String,
     val num: Int? = null,
+    val thumb: String? = null,
+    val ratio: Float? = null,
 )
 
 @Serializable
@@ -66,6 +70,7 @@ data class Pin(
     val title: String = "",
     val tags: List<String> = emptyList(),
     val addedAt: Long = System.currentTimeMillis(),
+    val ratio: Float? = null,
 )
 
 @Serializable

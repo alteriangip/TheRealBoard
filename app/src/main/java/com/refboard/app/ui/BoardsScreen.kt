@@ -458,7 +458,7 @@ fun BoardDetailScreen(
                             onLongClick = { if (!selected.remove(pin.imageUrl)) selected.add(pin.imageUrl) },
                         ),
                 ) {
-                    RemoteImage(primary = Thumbs.small(pin.imageUrl), fallback = pin.imageUrl, minHeight = 220)
+                    RemoteImage(primary = Thumbs.small(pin.imageUrl), fallback = pin.imageUrl, minHeight = 220, ratio = pin.ratio)
                     if (isSelected) {
                         Icon(
                             Icons.Outlined.CheckCircle, null,

@@ -212,7 +212,8 @@ fun FeedGrid(
             val info = gridState.layoutInfo
             (info.visibleItemsInfo.lastOrNull()?.index ?: 0) to info.totalItemsCount
         }.collect { (last, total) ->
-            if (total > 0 && last >= total - 8) vm.loadMore()
+            // Start the next page well before the end so scrolling rarely waits.
+            if (total > 0 && last >= total - 16) vm.loadMore()
         }
     }
 
@@ -308,6 +309,7 @@ private fun FeedTile(
             fallback = full,
             modifier = Modifier.fillMaxWidth(),
             minHeight = 200,
+            ratio = item.ratio,
         )
         if (item.title.isNotBlank()) {
             Text(

@@ -37,21 +37,20 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/refboard.jks"
           echo "REFBOARD_KEYSTORE_FILE=$RUNNER_TEMP/refboard.jks" >> "$GITHUB_ENV"
 
+      # The release build is optimised (R8) and runs noticeably smoother;
+      # the debug build is kept as a fallback.
+      - name: Build release APK
+        run: gradle assembleRelease --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RefBoard-apk
+          path: app/build/outputs/apk/release/*.apk
+
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
-          name: RefBoard-apk
+          name: RefBoard-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-
-      # Smaller, optimised build: only for main or when started by hand.
-      - name: Build release APK
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-        run: gradle assembleRelease --stacktrace
-
-      - uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-        with:
-          name: RefBoard-release-apk
-          path: app/build/outputs/apk/release/*.apk

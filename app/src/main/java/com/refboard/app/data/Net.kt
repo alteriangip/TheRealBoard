@@ -10,9 +10,10 @@ object Net {
 
     val client: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
-            val req = chain.request().newBuilder()
+            val original = chain.request()
+            val req = original.newBuilder()
                 .header("User-Agent", UA)
-                .header("Referer", "$ROOT/")
+                .apply { if (original.header("Referer") == null) header("Referer", "$ROOT/") }
                 .build()
             chain.proceed(req)
         }

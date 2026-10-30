@@ -17,6 +17,7 @@ import com.refboard.app.data.FeedPage
 import com.refboard.app.data.FeedSource
 import com.refboard.app.data.Feeds
 import com.refboard.app.data.Pin
+import com.refboard.app.data.Thumbs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -150,8 +151,10 @@ class FeedViewModel : ViewModel() {
     }
 
     private fun add(page: FeedPage) {
-        items.addAll(page.items.filter { seen.add(it.url) })
+        val fresh = page.items.filter { seen.add(it.url) }
+        items.addAll(fresh)
         done = page.done
+        prefetch(fresh.mapNotNull { it.thumb?.let(Thumbs::small) })
     }
 
     fun resolveCover(galleryUrl: String) {
@@ -174,12 +177,32 @@ class FeedViewModel : ViewModel() {
     }
 }
 
+/**
+ * Downloads thumbnails into the disk cache before their tiles scroll into
+ * view, so they appear at once. Kept out of the memory cache, which the
+ * grid fills with correctly sized copies itself.
+ */
+fun prefetch(urls: List<String>) {
+    val app = RefBoardApp.instance
+    val loader = coil.Coil.imageLoader(app)
+    urls.forEach { url ->
+        loader.enqueue(
+            coil.request.ImageRequest.Builder(app)
+                .data(url)
+                .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                // The file is what's wanted; decode it tiny to save the work.
+                .size(64)
+                .build(),
+        )
+    }
+}
+
 /** Shared by the feed and gallery screens. */
 suspend fun saveGalleryToBoard(galleryUrl: String, board: Board) {
     Session.toast("Fetching gallery…")
     runCatching { Bridge.gallery(galleryUrl) }
         .onSuccess { data ->
-            val pins = data.images.map { Pin(it.url, galleryUrl, data.title, data.tags) }
+            val pins = data.images.map { Pin(it.url, galleryUrl, data.title, data.tags, ratio = it.ratio) }
             val added = RefBoardApp.boards.addPins(board.id, pins)
             Session.toast("Added $added to ${board.name}")
         }

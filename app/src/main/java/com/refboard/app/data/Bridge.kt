@@ -3,28 +3,32 @@ package com.refboard.app.data
 import android.util.LruCache
 import com.chaquo.python.PyException
 import com.chaquo.python.Python
+import com.refboard.app.RefBoardApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
-/** Kotlin side of refbridge.py (gallery-dl running inside the app). */
+/**
+ * Kotlin side of refbridge.py (gallery-dl running inside the app). Site
+ * galleries are read by [SiteApi] first; gallery-dl handles the rest.
+ */
 object Bridge {
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
-    private val py by lazy { Python.getInstance().getModule("refbridge") }
+    private val py by lazy {
+        RefBoardApp.startPython()
+        Python.getInstance().getModule("refbridge")
+    }
 
     // Recently opened galleries, so going back and forth is instant without
     // keeping every gallery of a long session in memory.
     private val galleryCache = LruCache<String, GalleryData>(60)
     private val previewLimit = Semaphore(3)
 
-    fun searchUrl(query: String): String = py.callAttr("search_url", query).toString()
-    fun tagUrl(tag: String): String = py.callAttr("tag_url", tag).toString()
-    suspend fun searchUrlAsync(query: String): String = io { searchUrl(query) }
-    suspend fun tagUrlAsync(tag: String): String = io { tagUrl(tag) }
-    fun gdlVersion(): String = py.callAttr("gdl_version").toString()
+    fun searchUrl(query: String): String = SiteParser.searchUrl(query)
+    fun tagUrl(tag: String): String = SiteParser.tagUrl(tag)
+    suspend fun gdlVersion(): String = io { py.callAttr("gdl_version").toString() }
 
     fun urlFor(source: FeedSource): String = when (source) {
         is FeedSource.Search -> searchUrl(source.query)
@@ -33,27 +37,6 @@ object Bridge {
         is FeedSource.Category -> source.url
         is FeedSource.Listing -> "${Net.ROOT}/${source.kind}/"
         is FeedSource.Mix -> error("A mix has no single URL")
-    }
-
-    // ------------------------------------------------ site pages
-
-    private val sampleLimit = Semaphore(3)
-
-    suspend fun categories(): List<Category> = io {
-        json.decodeFromString(ListSerializer(Category.serializer()), py.callAttr("categories").toString())
-    }
-
-    suspend fun tagsIndex(): List<TagEntry> = io {
-        json.decodeFromString(ListSerializer(TagEntry.serializer()), py.callAttr("tags_index").toString())
-    }
-
-    suspend fun listingPage(url: String, offset: Int): ListingPage = io {
-        json.decodeFromString(ListingPage.serializer(), py.callAttr("listing_page", url, offset).toString())
-    }
-
-    /** First gallery thumbnail on a tag page, or null. */
-    suspend fun tagSample(url: String): String? = sampleLimit.withPermit {
-        io { py.callAttr("tag_sample", url).toString().ifEmpty { null } }
     }
 
     suspend fun startFeed(url: String): Int = io { py.callAttr("feed_start", url).toInt() }
@@ -68,7 +51,8 @@ object Bridge {
 
     suspend fun gallery(url: String): GalleryData {
         galleryCache.get(url)?.let { return it }
-        val data = io {
+        val direct = if (SiteApi.isSiteGallery(url)) runCatching { SiteApi.gallery(url) }.getOrNull() else null
+        val data = direct ?: io {
             json.decodeFromString(GalleryData.serializer(), py.callAttr("gallery", url).toString())
         }
         galleryCache.put(url, data)
@@ -79,7 +63,7 @@ object Bridge {
 
     /** Cover image for feed tiles that arrived without a thumbnail. */
     suspend fun cover(galleryUrl: String): String? = previewLimit.withPermit {
-        gallery(galleryUrl).images.firstOrNull()?.url
+        gallery(galleryUrl).images.firstOrNull()?.let { it.thumb ?: it.url }
     }
 
     suspend fun debug(url: String, limit: Int = 25): String = io {

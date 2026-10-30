@@ -45,16 +45,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
 import com.refboard.app.RefBoardApp
 import com.refboard.app.data.Board
 
+/** Width / height of images already seen, so tiles keep their shape when scrolled back to. */
+object ImageRatios {
+    private val cache = android.util.LruCache<String, Float>(3000)
+    fun get(url: String?): Float? = url?.let { cache.get(it) }
+    fun put(url: String?, ratio: Float) {
+        if (url != null) cache.put(url, ratio)
+    }
+}
+
 /**
  * Loads [primary]; if that fails and [fallback] is different, tries it instead.
- * Height follows the image so tiles form a masonry layout.
+ * With a known [ratio] (from the site, or remembered from an earlier load)
+ * the tile has its final size before the image arrives, so the grid doesn't
+ * jump while scrolling. Cropped images (covers) fill whatever box they get.
  */
 @Composable
 fun RemoteImage(
@@ -63,39 +75,43 @@ fun RemoteImage(
     fallback: String? = null,
     contentScale: ContentScale = ContentScale.FillWidth,
     minHeight: Int = 140,
+    ratio: Float? = null,
 ) {
     var useFallback by remember(primary) { mutableStateOf(false) }
     val model = if (useFallback) fallback else primary
+    val known = ratio ?: ImageRatios.get(primary)
+    var measured by remember(primary) { mutableStateOf<Float?>(null) }
+    val shape = known ?: measured
+    val placeholder = MaterialTheme.colorScheme.surfaceVariant
+    val painter = remember(placeholder) { ColorPainter(placeholder) }
+    val cropped = contentScale == ContentScale.Crop
+    val sized = when {
+        cropped -> Modifier
+        shape != null -> Modifier.fillMaxWidth().aspectRatio(shape)
+        else -> Modifier.fillMaxWidth().heightIn(min = minHeight.dp)
+    }
     if (model == null) {
-        Box(
-            modifier.fillMaxWidth().height(minHeight.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        )
+        Box(modifier.then(sized).background(placeholder))
         return
     }
-    SubcomposeAsyncImage(
+    AsyncImage(
         model = model,
         contentDescription = null,
-        contentScale = contentScale,
-        modifier = modifier,
-        loading = {
-            Box(
-                Modifier.fillMaxWidth().height(minHeight.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            )
-        },
-        error = {
-            if (!useFallback && fallback != null && fallback != primary) {
-                LaunchedEffect(model) { useFallback = true }
-            }
-            Box(
-                Modifier.fillMaxWidth().height(minHeight.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Outlined.BrokenImage, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        placeholder = painter,
+        error = painter,
+        contentScale = if (shape != null && !cropped) ContentScale.Crop else contentScale,
+        onSuccess = { state ->
+            val size = state.painter.intrinsicSize
+            if (size.width > 0f && size.height > 0f) {
+                val r = size.width / size.height
+                ImageRatios.put(primary, r)
+                if (known == null) measured = r
             }
         },
+        onError = {
+            if (!useFallback && fallback != null && fallback != primary) useFallback = true
+        },
+        modifier = modifier.then(sized),
     )
 }
 

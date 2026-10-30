@@ -79,7 +79,10 @@ class GalleryViewModel(private val url: String) : ViewModel() {
         error = null
         viewModelScope.launch {
             runCatching { Bridge.gallery(url) }
-                .onSuccess { data = it }
+                .onSuccess {
+                    data = it
+                    prefetch(it.images.take(40).map { img -> img.thumb ?: Thumbs.small(img.url) })
+                }
                 .onFailure { error = it.message ?: "Couldn't open gallery" }
         }
     }
@@ -96,7 +99,8 @@ class GalleryViewModel(private val url: String) : ViewModel() {
 
     fun pinSelected(board: Board) {
         val d = data ?: return
-        val pins = selected.map { Pin(it, url, d.title, d.tags) }
+        val ratios = d.images.associate { it.url to it.ratio }
+        val pins = selected.map { Pin(it, url, d.title, d.tags, ratio = ratios[it]) }
         val added = RefBoardApp.boards.addPins(board.id, pins)
         Session.toast("Added $added to ${board.name}")
         selected.clear()
@@ -227,7 +231,7 @@ fun GalleryScreen(
                                 onLongClick = { vm.toggle(img.url) },
                             ),
                     ) {
-                        RemoteImage(primary = Thumbs.small(img.url), fallback = img.url, minHeight = 220)
+                        RemoteImage(primary = img.thumb ?: Thumbs.small(img.url), fallback = img.url, minHeight = 220, ratio = img.ratio)
                         if (isSelected) {
                             Icon(
                                 Icons.Outlined.CheckCircle, null,

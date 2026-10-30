@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.refboard.app.RefBoardApp
 import com.refboard.app.data.Pin
+import com.refboard.app.data.Thumbs
 import com.refboard.app.data.ViewerImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -303,7 +304,7 @@ fun ViewerScreen(
             onPicked = { board ->
                 pickFor = null
                 val added = RefBoardApp.boards.addPins(
-                    board.id, listOf(Pin(img.url, img.galleryUrl, img.title, img.tags)),
+                    board.id, listOf(Pin(img.url, img.galleryUrl, img.title, img.tags, ratio = ImageRatios.get(Thumbs.small(img.url)))),
                 )
                 Session.toast(if (added > 0) "Pinned to ${board.name}" else "Already on ${board.name}")
             },

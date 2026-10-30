@@ -15,17 +15,20 @@ import com.refboard.app.data.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class RefBoardApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-        if (!Python.isStarted()) Python.start(AndroidPlatform(this))
         boards = BoardStore(this, appScope)
         downloader = Downloader(this)
         prefs = Prefs(this)
         Catalog.start(this, appScope)
+        // Python (gallery-dl) is only needed for some pages; warm it up off
+        // the main thread so it doesn't delay the first screen.
+        appScope.launch(Dispatchers.IO) { startPython() }
     }
 
     // One image loader for the whole app: sends the site's Referer, keeps a
@@ -47,6 +50,11 @@ class RefBoardApp : Application(), ImageLoaderFactory {
     companion object {
         lateinit var instance: RefBoardApp
             private set
+
+        @Synchronized
+        fun startPython() {
+            if (!Python.isStarted()) Python.start(AndroidPlatform(instance))
+        }
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         lateinit var boards: BoardStore
             private set

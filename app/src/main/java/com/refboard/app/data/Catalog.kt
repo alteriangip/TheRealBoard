@@ -56,17 +56,17 @@ object Catalog {
     }
 
     suspend fun loadCategories(force: Boolean = false): List<Category> = categoriesLock.withLock {
-        load(force, _categories, "categories.json", Category.serializer()) { Bridge.categories() }
+        load(force, _categories, "categories.json", Category.serializer()) { SiteApi.categories() }
     }
 
     suspend fun loadTags(force: Boolean = false): List<TagEntry> = tagsLock.withLock {
-        load(force, _tags, "tags.json", TagEntry.serializer()) { Bridge.tagsIndex() }
+        load(force, _tags, "tags.json", TagEntry.serializer()) { SiteApi.tagsIndex() }
     }
 
     /** Fetches a tag's sample image unless it is known. Cancel it when the tag scrolls away. */
     suspend fun loadSample(tag: TagEntry) {
         if (tag.slug in _samples.value) return
-        val url = runCatching { Bridge.tagSample(tag.url) }.getOrNull() ?: return
+        val url = runCatching { SiteApi.tagSample(tag.url) }.getOrNull() ?: return
         _samples.update { it + (tag.slug to url) }
     }
 
