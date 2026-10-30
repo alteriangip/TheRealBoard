@@ -76,6 +76,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -180,7 +182,10 @@ fun BoardsScreen(onOpenBoard: (String) -> Unit) {
                 Modifier.padding(padding),
             )
         } else {
+            val gridState = rememberLazyGridState()
+            OnScrollToTop { gridState.animateScrollToItem(0) }
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Adaptive(150.dp),
                 contentPadding = PaddingValues(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -402,7 +407,10 @@ fun BoardDetailScreen(
             )
         },
     ) { padding ->
+        val gridState = rememberLazyStaggeredGridState()
+        OnScrollToTop { gridState.animateScrollToItem(0) }
         LazyVerticalStaggeredGrid(
+            state = gridState,
             columns = StaggeredGridCells.Adaptive(150.dp),
             contentPadding = PaddingValues(10.dp),
             verticalItemSpacing = 8.dp,

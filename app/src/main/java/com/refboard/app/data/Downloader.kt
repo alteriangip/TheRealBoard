@@ -258,6 +258,7 @@ class Downloader(private val context: Context) {
             values.clear()
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
+            LocalImages.put(name, uri)
         } catch (e: Exception) {
             resolver.delete(uri, null, null)
             throw e

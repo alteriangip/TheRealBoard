@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -133,6 +134,8 @@ fun GalleryScreen(
     val data = vm.data
     val selecting = vm.selected.isNotEmpty()
     var picker by remember { mutableStateOf<String?>(null) } // "all" or "selected"
+    val gridState = rememberLazyStaggeredGridState()
+    OnScrollToTop { gridState.animateScrollToItem(0) }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -177,6 +180,7 @@ fun GalleryScreen(
                 CircularProgressIndicator()
             }
             else -> LazyVerticalStaggeredGrid(
+                state = gridState,
                 columns = StaggeredGridCells.Adaptive(150.dp),
                 contentPadding = PaddingValues(10.dp),
                 verticalItemSpacing = 8.dp,

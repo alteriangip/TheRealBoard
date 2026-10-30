@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.dp
 import com.refboard.app.RefBoardApp
 import com.refboard.app.data.FeedSource
@@ -61,7 +62,11 @@ fun FeedScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onOpenMenu) { Icon(Icons.Outlined.Menu, "Menu") }
-            Text("Feed", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text(
+                "Feed",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f).clickable { Session.scrollToTop() },
+            )
             if (orientation != Orientation.Straight) {
                 Text(
                     orientation.label,

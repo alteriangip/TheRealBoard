@@ -1,6 +1,7 @@
 package com.refboard.app.ui
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,9 @@ class FeedViewModel : ViewModel() {
         private set
     val items = mutableStateListOf<FeedItem>()
     private val seen = HashSet<String>()
+    /** Goes up each time the grid's contents are replaced, so the grid jumps back to the top. */
+    var resetCount by mutableIntStateOf(0)
+        private set
     var loading by mutableStateOf(false)
         private set
     var done by mutableStateOf(false)
@@ -106,6 +110,7 @@ class FeedViewModel : ViewModel() {
 
     private fun reset() {
         generation++
+        resetCount++
         job?.cancel()
         loader?.close()
         loader = null

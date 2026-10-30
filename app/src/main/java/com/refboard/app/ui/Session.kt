@@ -56,6 +56,17 @@ object Session {
         viewerStart = prefs.getInt("page", 0).coerceIn(0, (saved.size - 1).coerceAtLeast(0))
     }
 
+    private val _scrollTop = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    /** "Scroll to the top": the grid on screen listens and scrolls. */
+    val scrollTop: SharedFlow<Unit> = _scrollTop
+
+    fun scrollToTop() {
+        _scrollTop.tryEmit(Unit)
+    }
+
     private val _messages = MutableSharedFlow<String>(
         extraBufferCapacity = 8,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,

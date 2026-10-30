@@ -169,6 +169,17 @@ fun TagRow(
     }
 }
 
+/**
+ * Runs [scroll] when the user asks to go to the top (tapping the top of
+ * the screen, a screen's title, or the tab they're already on). Only the
+ * screen being shown is listening.
+ */
+@Composable
+fun OnScrollToTop(scroll: suspend () -> Unit) {
+    val latest by androidx.compose.runtime.rememberUpdatedState(scroll)
+    LaunchedEffect(Unit) { Session.scrollTop.collect { latest() } }
+}
+
 /** Chips with a star to bookmark them in Favourites. */
 @Composable
 fun FavoriteChipRow(

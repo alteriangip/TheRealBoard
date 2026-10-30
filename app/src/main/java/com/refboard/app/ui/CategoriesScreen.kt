@@ -166,9 +166,11 @@ private fun TileGrid(
         CenterMessage("No matches.")
         return
     }
+    val gridState = rememberLazyGridState()
+    OnScrollToTop { gridState.animateScrollToItem(0) }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(110.dp),
-        state = rememberLazyGridState(),
+        state = gridState,
         contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),

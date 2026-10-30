@@ -45,6 +45,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -77,7 +79,11 @@ fun FavoritesScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onOpenMenu) { Icon(Icons.Outlined.Menu, "Menu") }
-            Text("Favourites", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text(
+                "Favourites",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f).clickable { Session.scrollToTop() },
+            )
         }
 
         TabRow(selectedTabIndex = tab) {
@@ -98,7 +104,10 @@ fun FavoritesScreen(
             return
         }
 
+        val gridState = rememberLazyGridState()
+        OnScrollToTop { gridState.animateScrollToItem(0) }
         LazyVerticalGrid(
+            state = gridState,
             columns = GridCells.Adaptive(130.dp),
             contentPadding = PaddingValues(10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

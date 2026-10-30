@@ -11,6 +11,7 @@ import com.refboard.app.data.BoardStore
 import com.refboard.app.data.Catalog
 import com.refboard.app.data.Downloader
 import com.refboard.app.data.FavoritesStore
+import com.refboard.app.data.LocalImages
 import com.refboard.app.data.Net
 import com.refboard.app.data.Prefs
 import com.refboard.app.ui.Session
@@ -29,6 +30,7 @@ class RefBoardApp : Application(), ImageLoaderFactory {
         prefs = Prefs(this)
         favorites = FavoritesStore(this, appScope)
         Catalog.start(this, appScope)
+        LocalImages.start(this, appScope)
         Net.onThrottled = { until ->
             val secs = ((until - System.currentTimeMillis()) / 1000).coerceAtLeast(1)
             Session.toast("The site is limiting requests. Images will load again in about ${secs}s.")
@@ -51,6 +53,8 @@ class RefBoardApp : Application(), ImageLoaderFactory {
                     .maxSizeBytes(800L * 1024 * 1024)
                     .build()
             }
+            // Downloaded pictures load from the phone (works offline).
+            .components { add(LocalImages.CoilMapper()) }
             .respectCacheHeaders(false)
             .crossfade(true)
             .build()

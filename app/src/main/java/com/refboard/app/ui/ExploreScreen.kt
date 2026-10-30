@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -204,9 +205,16 @@ fun FeedGrid(
     var pickerFor by remember { mutableStateOf<String?>(null) }
     val source = vm.source
 
-    LaunchedEffect(source) {
-        if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0)
+    // New contents start at the top. Remembered across screens so coming
+    // back from a gallery (same contents) keeps your place.
+    var shownReset by rememberSaveable { mutableIntStateOf(vm.resetCount) }
+    LaunchedEffect(vm.resetCount) {
+        if (vm.resetCount != shownReset) {
+            shownReset = vm.resetCount
+            gridState.scrollToItem(0)
+        }
     }
+    OnScrollToTop { gridState.animateScrollToItem(0) }
     LaunchedEffect(gridState, source) {
         snapshotFlow {
             val info = gridState.layoutInfo

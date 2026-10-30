@@ -27,6 +27,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Box
 import com.refboard.app.ui.latestFromFavorites
 import com.refboard.app.ui.FavoritesScreen
 import androidx.compose.material.icons.outlined.StarBorder
@@ -178,6 +184,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
             )
         },
     ) {
+    Box {
     Scaffold(
         contentWindowInsets = WindowInsets.navigationBars,
         snackbarHost = { SnackbarHost(snackbar) },
@@ -186,31 +193,31 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                 NavigationBar {
                     NavigationBarItem(
                         selected = route == Routes.FEED,
-                        onClick = { nav.goTo(Routes.FEED) },
+                        onClick = { if (route == Routes.FEED) Session.scrollToTop() else nav.goTo(Routes.FEED) },
                         icon = { Icon(Icons.Outlined.DynamicFeed, null) },
                         label = { Text("Feed") },
                     )
                     NavigationBarItem(
                         selected = route == Routes.EXPLORE,
-                        onClick = { nav.goTo(Routes.EXPLORE) },
+                        onClick = { if (route == Routes.EXPLORE) Session.scrollToTop() else nav.goTo(Routes.EXPLORE) },
                         icon = { Icon(Icons.Outlined.Search, null) },
                         label = { Text("Search") },
                     )
                     NavigationBarItem(
                         selected = route == Routes.CATEGORIES,
-                        onClick = { nav.goTo(Routes.CATEGORIES) },
+                        onClick = { if (route == Routes.CATEGORIES) Session.scrollToTop() else nav.goTo(Routes.CATEGORIES) },
                         icon = { Icon(Icons.Outlined.Category, null) },
                         label = { Text("Categories") },
                     )
                     NavigationBarItem(
                         selected = route == Routes.FAVORITES,
-                        onClick = { nav.goTo(Routes.FAVORITES) },
+                        onClick = { if (route == Routes.FAVORITES) Session.scrollToTop() else nav.goTo(Routes.FAVORITES) },
                         icon = { Icon(Icons.Outlined.StarBorder, null) },
                         label = { Text("Favourites") },
                     )
                     NavigationBarItem(
                         selected = route == Routes.BOARDS,
-                        onClick = { nav.goTo(Routes.BOARDS) },
+                        onClick = { if (route == Routes.BOARDS) Session.scrollToTop() else nav.goTo(Routes.BOARDS) },
                         icon = { Icon(Icons.Outlined.Dashboard, null) },
                         label = { Text("Boards") },
                     )
@@ -326,6 +333,18 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                 DebugScreen(onBack = { nav.popBackStack() })
             }
         }
+    }
+    // Like iOS: tapping the very top of the screen scrolls back to the top.
+    // (Some phones keep that strip for the system; the screen titles and
+    // re-tapping the current tab do the same.)
+    if (route?.startsWith("viewer") != true) {
+        Box(
+            Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    Session.scrollToTop()
+                },
+        )
+    }
     }
     }
 }
