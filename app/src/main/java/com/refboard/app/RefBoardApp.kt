@@ -10,6 +10,7 @@ import com.chaquo.python.android.AndroidPlatform
 import com.refboard.app.data.BoardStore
 import com.refboard.app.data.Catalog
 import com.refboard.app.data.Downloader
+import com.refboard.app.data.FavoritesStore
 import com.refboard.app.data.Net
 import com.refboard.app.data.Prefs
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +26,7 @@ class RefBoardApp : Application(), ImageLoaderFactory {
         boards = BoardStore(this, appScope)
         downloader = Downloader(this)
         prefs = Prefs(this)
+        favorites = FavoritesStore(this, appScope)
         Catalog.start(this, appScope)
         // Python (gallery-dl) is only needed for some pages; warm it up off
         // the main thread so it doesn't delay the first screen.
@@ -61,6 +63,8 @@ class RefBoardApp : Application(), ImageLoaderFactory {
         lateinit var downloader: Downloader
             private set
         lateinit var prefs: Prefs
+            private set
+        lateinit var favorites: FavoritesStore
             private set
     }
 }

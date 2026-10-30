@@ -44,6 +44,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.refboard.app.data.Favorite
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.InputChip
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
@@ -130,6 +135,36 @@ fun TagRow(
     ) {
         items(tags, key = { it }) { tag ->
             SuggestionChip(onClick = { onTag(tag) }, label = { Text(tag) })
+        }
+    }
+}
+
+/** Model or channel chips with a star to follow them in Favourites. */
+@Composable
+fun FavoriteChipRow(names: List<String>, kind: String, onOpen: (String) -> Unit) {
+    val favorites by RefBoardApp.favorites.favorites.collectAsState()
+    val keys = remember(favorites) { favorites.mapTo(HashSet()) { it.key } }
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items(names, key = { it }) { name ->
+            val starred = Favorite.key(kind, name) in keys
+            InputChip(
+                selected = starred,
+                onClick = { onOpen(name) },
+                label = { Text(name) },
+                trailingIcon = {
+                    Icon(
+                        if (starred) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                        if (starred) "Remove from favourites" else "Add to favourites",
+                        Modifier.size(20.dp).clip(CircleShape).clickable {
+                            val added = RefBoardApp.favorites.toggle(kind, name)
+                            Session.toast(if (added) "Added $name to Favourites" else "Removed $name from Favourites")
+                        },
+                    )
+                },
+            )
         }
     }
 }

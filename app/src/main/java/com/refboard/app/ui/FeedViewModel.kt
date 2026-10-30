@@ -195,6 +195,8 @@ class FeedViewModel : ViewModel() {
  * grid fills with correctly sized copies itself.
  */
 fun prefetch(urls: List<String>) {
+    // A board download is using the site's patience; don't add to it.
+    if (RefBoardApp.downloader.active) return
     val app = RefBoardApp.instance
     val loader = coil.Coil.imageLoader(app)
     urls.forEach { url ->

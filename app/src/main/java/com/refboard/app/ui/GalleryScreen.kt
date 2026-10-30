@@ -60,6 +60,7 @@ import com.refboard.app.data.Board
 import com.refboard.app.data.Bridge
 import com.refboard.app.data.GalleryData
 import com.refboard.app.data.Pin
+import com.refboard.app.data.Favorite
 import com.refboard.app.data.Thumbs
 import com.refboard.app.data.ViewerImage
 import kotlinx.coroutines.launch
@@ -193,10 +194,11 @@ fun GalleryScreen(
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(start = 4.dp, top = 4.dp),
                                 )
-                                TagRow(
-                                    values,
-                                    onTag = { if (key == "models" || key == "channel") onSearch(it) else onTag(it) },
-                                )
+                                when (key) {
+                                    "models" -> FavoriteChipRow(values, Favorite.MODEL, onOpen = onSearch)
+                                    "channel" -> FavoriteChipRow(values, Favorite.CHANNEL, onOpen = onSearch)
+                                    else -> TagRow(values, onTag = onTag)
+                                }
                             }
                         }
                         if (data.groups.isEmpty() && data.tags.isNotEmpty()) {

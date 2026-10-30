@@ -27,6 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.refboard.app.ui.latestFromFavorites
+import com.refboard.app.ui.FavoritesScreen
+import androidx.compose.material.icons.outlined.StarBorder
 import com.refboard.app.ui.AppMenu
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
@@ -89,6 +92,8 @@ private object Routes {
     const val FEED = "feed"
     const val EXPLORE = "explore"
     const val CATEGORIES = "categories"
+    const val FAVORITES = "favorites"
+    const val FAV_LATEST = "favlatest?kind={kind}"
     const val BOARDS = "boards"
     const val BROWSE = "browse?name={name}&url={url}"
     const val GALLERY = "gallery?url={url}"
@@ -101,7 +106,8 @@ private object Routes {
     fun board(id: String) = "board/$id"
     fun browse(name: String, url: String) = "browse?name=${Uri.encode(name)}&url=${Uri.encode(url)}"
 
-    val tabs = listOf(FEED, EXPLORE, CATEGORIES, BOARDS)
+    val tabs = listOf(FEED, EXPLORE, CATEGORIES, FAVORITES, BOARDS)
+    fun favLatest(kind: String?) = "favlatest?kind=${kind.orEmpty()}"
 }
 
 @Composable
@@ -197,6 +203,12 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                         label = { Text("Categories") },
                     )
                     NavigationBarItem(
+                        selected = route == Routes.FAVORITES,
+                        onClick = { nav.goTo(Routes.FAVORITES) },
+                        icon = { Icon(Icons.Outlined.StarBorder, null) },
+                        label = { Text("Favourites") },
+                    )
+                    NavigationBarItem(
                         selected = route == Routes.BOARDS,
                         onClick = { nav.goTo(Routes.BOARDS) },
                         icon = { Icon(Icons.Outlined.Dashboard, null) },
@@ -213,6 +225,26 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                     onOpenGallery = { nav.navigate(Routes.gallery(it)) },
                     onOpenViewer = { nav.navigate(Routes.viewer(true)) },
                     onOpenMenu = openMenu,
+                )
+            }
+            composable(Routes.FAVORITES) {
+                FavoritesScreen(
+                    onOpen = { name, url -> nav.navigate(Routes.browse(name, url)) },
+                    onOpenLatest = { kind -> nav.navigate(Routes.favLatest(kind)) },
+                    onOpenMenu = openMenu,
+                )
+            }
+            composable(
+                Routes.FAV_LATEST,
+                arguments = listOf(navArgument("kind") { type = NavType.StringType; defaultValue = "" }),
+            ) { entry ->
+                val kind = entry.arguments?.getString("kind").orEmpty().ifEmpty { null }
+                val source = remember(kind) { latestFromFavorites(kind) }
+                BrowseScreen(
+                    source = source,
+                    onBack = { nav.popBackStack() },
+                    onOpenGallery = { nav.navigate(Routes.gallery(it)) },
+                    onOpenViewer = { nav.navigate(Routes.viewer(true)) },
                 )
             }
             composable(Routes.CATEGORIES) {

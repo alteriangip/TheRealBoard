@@ -112,7 +112,7 @@ fun BoardsScreen(onOpenBoard: (String) -> Unit) {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     context.contentResolver.openOutputStream(uri, "wt")!!.use {
-                        it.write(RefBoardApp.boards.exportJson().toByteArray())
+                        it.write(RefBoardApp.boards.exportJson(RefBoardApp.favorites.favorites.value).toByteArray())
                     }
                 }.isSuccess
             }
@@ -128,8 +128,9 @@ fun BoardsScreen(onOpenBoard: (String) -> Unit) {
                     RefBoardApp.boards.importJson(text)
                 }
             }
-            result.onSuccess { (newBoards, newPins) ->
-                Session.toast("Restored $newBoards boards and $newPins pins")
+            result.onSuccess { r ->
+                val favs = RefBoardApp.favorites.merge(r.favorites)
+                Session.toast("Restored ${r.boards} boards, ${r.pins} pins and $favs favourites")
             }.onFailure { Session.toast("Couldn't restore: ${it.message}") }
         }
     }
@@ -414,12 +415,15 @@ fun BoardDetailScreen(
                         val progress = if (dl.total == 0) 1f else dl.handled.toFloat() / dl.total
                         val extra = buildString {
                             if (dl.skipped > 0) append(" · ${dl.skipped} already saved")
+                            if (dl.fromCache > 0) append(" · ${dl.fromCache} from cache")
                             if (dl.failed > 0) append(" · ${dl.failed} failed")
                         }
                         Text(
                             when {
                                 dl.cancelled -> "Stopped at ${dl.handled}/${dl.total}$extra"
                                 dl.finished -> "Downloaded ${dl.done}/${dl.total}$extra"
+                                dl.pausedUntil != null ->
+                                    "Paused at ${dl.handled}/${dl.total}: the site asked to slow down. Resuming shortly.$extra"
                                 else -> "Downloading ${dl.handled}/${dl.total}…$extra"
                             },
                             style = MaterialTheme.typography.bodySmall,
@@ -427,7 +431,15 @@ fun BoardDetailScreen(
                         )
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
                         if (dl.finished) {
-                            TextButton(onClick = { RefBoardApp.downloader.clear(boardId) }) { Text("Dismiss") }
+                            Row {
+                                if (dl.failed > 0 || dl.cancelled) {
+                                    // Saved images are skipped, so this only fetches what's missing.
+                                    TextButton(onClick = ::startDownload) {
+                                        Text(if (dl.cancelled) "Resume" else "Retry ${dl.failed} failed")
+                                    }
+                                }
+                                TextButton(onClick = { RefBoardApp.downloader.clear(boardId) }) { Text("Dismiss") }
+                            }
                         }
                     }
                     FilterChipRow(tagCounts, tagFilter) { tagFilter = it }

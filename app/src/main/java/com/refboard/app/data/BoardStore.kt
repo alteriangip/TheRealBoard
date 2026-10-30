@@ -116,19 +116,24 @@ class BoardStore(context: Context, scope: CoroutineScope) {
 
     // ------------------------------------------------------------ backup
 
-    fun exportJson(): String = backupJson.encodeToString(
+    fun exportJson(favorites: List<Favorite>): String = backupJson.encodeToString(
         Backup.serializer(),
-        Backup(exportedAt = System.currentTimeMillis(), boards = _boards.value),
+        Backup(exportedAt = System.currentTimeMillis(), boards = _boards.value, favorites = favorites),
     )
+
+    /** What a restore added. */
+    data class Restored(val boards: Int, val pins: Int, val favorites: List<Favorite>)
 
     /**
      * Merges a backup into the current boards: boards with the same id get
-     * the missing pins, others are added. Returns (boards added, pins added).
+     * the missing pins, others are added. Favourites are returned for the
+     * caller to merge.
      */
-    fun importJson(text: String): Pair<Int, Int> {
-        val incoming = runCatching { backupJson.decodeFromString(Backup.serializer(), text).boards }
-            .recoverCatching { backupJson.decodeFromString(listSerializer, text) }
+    fun importJson(text: String): Restored {
+        val backup = runCatching { backupJson.decodeFromString(Backup.serializer(), text) }
+            .recoverCatching { Backup(boards = backupJson.decodeFromString(listSerializer, text)) }
             .getOrElse { throw IllegalArgumentException("Not a RefBoard backup") }
+        val incoming = backup.boards
         var newBoards = 0
         var newPins = 0
         change { list ->
@@ -148,7 +153,7 @@ class BoardStore(context: Context, scope: CoroutineScope) {
             }
             byId.values.toList()
         }
-        return newBoards to newPins
+        return Restored(newBoards, newPins, backup.favorites)
     }
 
     private val backupJson = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -156,8 +161,9 @@ class BoardStore(context: Context, scope: CoroutineScope) {
     @Serializable
     private data class Backup(
         val app: String = "RefBoard",
-        val version: Int = 1,
+        val version: Int = 2,
         val exportedAt: Long = 0,
         val boards: List<Board> = emptyList(),
+        val favorites: List<Favorite> = emptyList(),
     )
 }
