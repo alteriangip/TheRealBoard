@@ -193,10 +193,12 @@ private fun SectionLabel(text: String) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FeedGrid(
+fun FeedGrid(
     vm: FeedViewModel,
     onOpenGallery: (String) -> Unit,
     onOpenViewer: () -> Unit,
+    showHeader: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     val gridState = rememberLazyStaggeredGridState()
     var pickerFor by remember { mutableStateOf<String?>(null) }
