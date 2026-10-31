@@ -54,3 +54,52 @@ jobs:
         with:
           name: RefBoard-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+  # iPad / iPhone app: an unsigned .ipa for SideStore or LiveContainer,
+  # which sign it on the device.
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # The Android module (with Python) is configured too, even though only
+      # the shared framework is built here.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build shared framework
+        run: gradle :shared:linkReleaseFrameworkIosArm64 --stacktrace
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          cd iosApp && xcodegen generate
+
+      - name: Build app (unsigned)
+        run: |
+          cd iosApp
+          xcodebuild -project RefBoard.xcodeproj -target RefBoard \
+            -configuration Release -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            SYMROOT="$PWD/build" build
+
+      - name: Package .ipa
+        run: |
+          mkdir Payload
+          cp -R iosApp/build/Release-iphoneos/RefBoard.app Payload/
+          zip -qry RefBoard.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RefBoard-ipa
+          path: RefBoard.ipa

@@ -17,4 +17,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "RefBoard"
-include(":app")
+include(":app", ":shared")
