@@ -211,7 +211,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                 Routes.FAV_LATEST,
                 arguments = listOf(navArgument("kind") { type = NavType.StringType; defaultValue = "" }),
             ) { entry ->
-                val kind = entry.arguments?.getString("kind").orEmpty().ifEmpty { null }
+                val kind = entry.savedStateHandle.get<String>("kind").orEmpty().ifEmpty { null }
                 val source = remember(kind) { latestFromFavorites(kind) }
                 BrowseScreen(
                     source = source,
@@ -237,8 +237,8 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
             ) { entry ->
                 BrowseScreen(
                     source = FeedSource.Category(
-                        entry.arguments?.getString("name").orEmpty(),
-                        entry.arguments?.getString("url").orEmpty(),
+                        entry.savedStateHandle.get<String>("name").orEmpty(),
+                        entry.savedStateHandle.get<String>("url").orEmpty(),
                     ),
                     onBack = { nav.popBackStack() },
                     onOpenGallery = { nav.navigate(Routes.gallery(it)) },
@@ -260,7 +260,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                 Routes.GALLERY,
                 arguments = listOf(navArgument("url") { type = NavType.StringType }),
             ) { entry ->
-                val url = entry.arguments?.getString("url").orEmpty()
+                val url = entry.savedStateHandle.get<String>("url").orEmpty()
                 GalleryScreen(
                     url = url,
                     onBack = { nav.popBackStack() },
@@ -280,8 +280,8 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                     onBack = { nav.popBackStack() },
                     onTag = ::searchTag,
                     onOpenGallery = { nav.navigate(Routes.gallery(it)) },
-                    showGalleryButton = entry.arguments?.getBoolean("gallery") ?: true,
-                    practiceSeconds = entry.arguments?.getInt("timer") ?: 0,
+                    showGalleryButton = entry.savedStateHandle.get<Boolean>("gallery") ?: true,
+                    practiceSeconds = entry.savedStateHandle.get<Int>("timer") ?: 0,
                 )
             }
             composable(
@@ -289,7 +289,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                 arguments = listOf(navArgument("id") { type = NavType.StringType }),
             ) { entry ->
                 BoardDetailScreen(
-                    boardId = entry.arguments?.getString("id").orEmpty(),
+                    boardId = entry.savedStateHandle.get<String>("id").orEmpty(),
                     onBack = { nav.popBackStack() },
                     onOpenViewer = { nav.navigate(Routes.viewer(true)) },
                     onOpenPractice = { nav.navigate(Routes.viewer(showGallery = false, timerSeconds = it)) },

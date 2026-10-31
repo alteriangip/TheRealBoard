@@ -134,7 +134,7 @@ object Feeds {
         recent.take(2).forEach { parts["q:${it.lowercase()}"] = FeedSource.Search(it) }
         val random = Random(seed)
         categories.shuffled(random).take((4 - parts.size).coerceAtLeast(1)).forEach {
-            parts.putIfAbsent(it.url, FeedSource.Category(it.name, it.url))
+            if (it.url !in parts) parts[it.url] = FeedSource.Category(it.name, it.url)
         }
         if (parts.isEmpty()) return FeedSource.Listing("popular", "Popular", orientation)
         return FeedSource.Mix("For you", parts.values.shuffled(random))
