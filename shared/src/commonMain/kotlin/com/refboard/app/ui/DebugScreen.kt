@@ -1,5 +1,6 @@
 package com.refboard.app.ui
 
+import com.refboard.app.Refboard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,7 +44,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugScreen(onBack: () -> Unit) {
-    var url by rememberSaveable { mutableStateOf("${Net.ROOT}/?q=standing") }
+    var url by rememberSaveable { mutableStateOf(Refboard.site.searchUrl("standing")) }
     var output by remember { mutableStateOf("") }
     var running by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()

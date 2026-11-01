@@ -37,23 +37,33 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/refboard.jks"
           echo "REFBOARD_KEYSTORE_FILE=$RUNNER_TEMP/refboard.jks" >> "$GITHUB_ENV"
 
-      # The release build is optimised (R8) and runs noticeably smoother;
-      # the debug build is kept as a fallback.
-      - name: Build release APK
+      # The release builds are optimised (R8) and run noticeably smoother;
+      # the debug builds are kept as a fallback. Each site is its own app.
+      - name: Build release APKs
         run: gradle assembleRelease --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
           name: RefBoard-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/pornpics/release/*.apk
 
-      - name: Build debug APK
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EroBoard-apk
+          path: app/build/outputs/apk/erome/release/*.apk
+
+      - name: Build debug APKs
         run: gradle assembleDebug --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
           name: RefBoard-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/pornpics/debug/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EroBoard-debug-apk
+          path: app/build/outputs/apk/erome/debug/*.apk
 
   # iPad / iPhone app: an unsigned .ipa for SideStore or LiveContainer,
   # which sign it on the device.
@@ -85,21 +95,30 @@ jobs:
           brew install xcodegen
           cd iosApp && xcodegen generate
 
-      - name: Build app (unsigned)
+      - name: Build apps (unsigned)
         run: |
           cd iosApp
-          xcodebuild -project RefBoard.xcodeproj -target RefBoard \
-            -configuration Release -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            SYMROOT="$PWD/build" build
+          for app in RefBoard EroBoard; do
+            xcodebuild -project RefBoard.xcodeproj -target "$app" \
+              -configuration Release -sdk iphoneos \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+              SYMROOT="$PWD/build" build
+          done
 
-      - name: Package .ipa
+      - name: Package .ipa files
         run: |
-          mkdir Payload
-          cp -R iosApp/build/Release-iphoneos/RefBoard.app Payload/
-          zip -qry RefBoard.ipa Payload
+          for app in RefBoard EroBoard; do
+            rm -rf Payload && mkdir Payload
+            cp -R "iosApp/build/Release-iphoneos/$app.app" Payload/
+            zip -qry "$app.ipa" Payload
+          done
 
       - uses: actions/upload-artifact@v4
         with:
           name: RefBoard-ipa
           path: RefBoard.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EroBoard-ipa
+          path: EroBoard.ipa

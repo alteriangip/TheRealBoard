@@ -223,7 +223,7 @@ private fun BoardCard(board: Board, onClick: () -> Unit) {
 @Composable
 private fun CoverImage(url: String, modifier: Modifier) {
     RemoteImage(
-        primary = Thumbs.small(url),
+        primary = Refboard.site.smallImage(url),
         fallback = url,
         contentScale = ContentScale.Crop,
         modifier = modifier,
@@ -446,7 +446,7 @@ fun BoardDetailScreen(
                             onLongClick = { if (!selected.remove(pin.imageUrl)) selected.add(pin.imageUrl) },
                         ),
                 ) {
-                    RemoteImage(primary = Thumbs.small(pin.imageUrl), fallback = pin.imageUrl, minHeight = 220, ratio = pin.ratio)
+                    RemoteImage(primary = Refboard.site.smallImage(pin.imageUrl), fallback = pin.imageUrl, minHeight = 220, ratio = pin.ratio)
                     if (isSelected) {
                         Icon(
                             Icons.Outlined.CheckCircle, null,

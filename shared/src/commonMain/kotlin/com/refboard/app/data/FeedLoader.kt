@@ -20,7 +20,7 @@ class SiteLoader(private val url: String, private var firstPage: ListingPage? = 
 
     override suspend fun next(count: Int): FeedPage {
         if (done) return FeedPage(emptyList(), done = true)
-        val page = firstPage?.also { firstPage = null } ?: SiteApi.listingPage(url, offset)
+        val page = firstPage?.also { firstPage = null } ?: Refboard.site.listingPage(url, offset)
         offset = page.next
         done = page.done
         return FeedPage(page.items, page.done)
@@ -38,7 +38,7 @@ class SearchLoader(private val query: String, private val orientationWord: Strin
 
     override suspend fun next(count: Int): FeedPage {
         inner?.let { return it.next(count) }
-        val start = SiteApi.startSearch(query)
+        val start = Refboard.site.startSearch(query)
         val addWord = !start.redirected && orientationWord != null && !query.contains(orientationWord, ignoreCase = true)
         val loader = if (addWord) {
             SiteLoader(Bridge.searchUrl("$orientationWord $query"))
@@ -92,15 +92,17 @@ class MixLoader(parts: List<FeedLoader>) : FeedLoader {
 }
 
 object Feeds {
-    private val listingPath = Regex("""^${Regex.escape(Net.ROOT)}/(popular|recent|rating|likes|views|comments)/?$""")
 
     fun loader(source: FeedSource): FeedLoader = when (source) {
         is FeedSource.Mix -> MixLoader(source.parts.map { loader(it) })
         is FeedSource.Url ->
-            if (listingPath.matches(source.url)) SiteLoader(source.url)
+            if (Refboard.site.isListingUrl(source.url)) SiteLoader(source.url)
             else Platform.services.galleryDl?.feed(source.url) ?: UnsupportedLoader(source.url)
         is FeedSource.Search ->
-            SearchLoader(source.query, Refboard.prefs.orientation.value.searchWord)
+            SearchLoader(
+                source.query,
+                if (Refboard.site.hasOrientation) Refboard.prefs.orientation.value.searchWord else null,
+            )
         is FeedSource.Tag, is FeedSource.Category, is FeedSource.Listing ->
             SiteLoader(Bridge.urlFor(source))
     }
@@ -136,7 +138,10 @@ object Feeds {
         categories.shuffled(random).take((4 - parts.size).coerceAtLeast(1)).forEach {
             if (it.url !in parts) parts[it.url] = FeedSource.Category(it.name, it.url)
         }
-        if (parts.isEmpty()) return FeedSource.Listing("popular", "Popular", orientation)
+        if (parts.isEmpty()) {
+            val (kind, title) = Refboard.site.listings.first()
+            return FeedSource.Listing(kind, title, orientation)
+        }
         return FeedSource.Mix("For you", parts.values.shuffled(random))
     }
 }

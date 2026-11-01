@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import com.refboard.app.data.Favorite
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.InputChip
 import androidx.compose.ui.draw.clip
@@ -175,6 +176,21 @@ fun OnScrollToTop(scroll: suspend () -> Unit) {
     LaunchedEffect(Unit) { Session.scrollTop.collect { latest() } }
 }
 
+/** Marks a tile as a video. */
+@Composable
+fun VideoBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(44.dp).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            androidx.compose.material.icons.Icons.Filled.PlayArrow, "Video",
+            tint = androidx.compose.ui.graphics.Color.White,
+            modifier = Modifier.size(28.dp),
+        )
+    }
+}
+
 /** Chips with a star to bookmark them in Favourites. */
 @Composable
 fun FavoriteChipRow(
@@ -266,7 +282,7 @@ fun BoardPickerSheet(
                         ) {
                             if (cover != null) {
                                 RemoteImage(
-                                    primary = com.refboard.app.data.Thumbs.small(cover),
+                                    primary = Refboard.site.smallImage(cover),
                                     fallback = cover,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.aspectRatio(1f),

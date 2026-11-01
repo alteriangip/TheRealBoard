@@ -29,6 +29,8 @@ class MainActivity : ComponentActivity() {
     private fun extractUrl(intent: Intent?): String? {
         if (intent?.action != Intent.ACTION_SEND) return null
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
-        return Regex("""https?://\S*pornpics\.com\S*""").find(text)?.value
+        // A link to the site this app browses.
+        val host = Regex.escape(Refboard.site.root.substringAfter("://").removePrefix("www."))
+        return Regex("""https?://\S*$host\S*""").find(text)?.value
     }
 }

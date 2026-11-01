@@ -101,9 +101,6 @@ object SiteApi {
         return jsonPage(get("${SiteParser.ROOT}/search/srch.php?$params", referer = referer, json = true), offset)
     }
 
-    /** Where a search lands, and its first page. */
-    class SearchStart(val url: String, val redirected: Boolean, val page: ListingPage)
-
     /**
      * Searches like the site's search box: a query that matches a tag,
      * category or channel is sent to that page (e.g. "frottage" opens

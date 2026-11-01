@@ -1,5 +1,6 @@
 package com.refboard.app.data
 
+import com.refboard.app.Refboard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -37,7 +38,7 @@ data class Favorite(
      * gallery-dl does: the site's own pages for them can't be paged past
      * the first 20. Categories and tags open their own page.
      */
-    val url get() = link ?: SiteParser.searchUrl(name)
+    val url get() = link ?: Refboard.site.searchUrl(name)
 
     companion object {
         const val MODEL = "model"

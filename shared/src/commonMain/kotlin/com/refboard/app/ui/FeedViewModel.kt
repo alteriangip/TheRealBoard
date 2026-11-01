@@ -186,7 +186,7 @@ class FeedViewModel : ViewModel() {
         }
         // Only the start of the page: the grid fetches the rest as it scrolls,
         // and every extra request counts against the site's limit.
-        prefetch(fresh.take(8).mapNotNull { it.thumb?.let(Thumbs::small) })
+        prefetch(fresh.take(8).mapNotNull { it.thumb?.let(Refboard.site::smallImage) })
     }
 
     fun resolveCover(galleryUrl: String) {

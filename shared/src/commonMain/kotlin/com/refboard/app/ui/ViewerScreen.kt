@@ -67,6 +67,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -115,6 +116,7 @@ fun ViewerScreen(
     var chrome by remember { mutableStateOf(true) }
     var pickFor by remember { mutableStateOf<ViewerImage?>(null) }
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
 
     var mirror by rememberSaveable { mutableStateOf(false) }
     var grey by rememberSaveable { mutableStateOf(false) }
@@ -259,6 +261,12 @@ fun ViewerScreen(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    current.video?.let { video ->
+                        // Videos play in the device's own player.
+                        Button(onClick = { runCatching { uriHandler.openUri(video) } }) {
+                            Icon(Icons.Outlined.PlayArrow, null); Text(" Play")
+                        }
+                    }
                     FilledTonalButton(onClick = { pickFor = current }) {
                         Icon(Icons.Outlined.PushPin, null); Text(" Pin")
                     }
@@ -304,7 +312,7 @@ fun ViewerScreen(
             onPicked = { board ->
                 pickFor = null
                 val added = Refboard.boards.addPins(
-                    board.id, listOf(Pin(img.url, img.galleryUrl, img.title, img.tags, ratio = ImageRatios.get(Thumbs.small(img.url)))),
+                    board.id, listOf(Pin(img.url, img.galleryUrl, img.title, img.tags, ratio = ImageRatios.get(Refboard.site.smallImage(img.url)))),
                 )
                 Session.toast(if (added > 0) "Pinned to ${board.name}" else "Already on ${board.name}")
             },

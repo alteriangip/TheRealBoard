@@ -1,5 +1,6 @@
 # Generates RefBoard.xcodeproj with XcodeGen (`xcodegen generate`).
-# The app itself is the shared Kotlin code, built first as Shared.framework.
+# Two apps (RefBoard for PornPics, EroBoard for Erome) share one Kotlin
+# framework, Shared.framework, built first.
 name: RefBoard
 options:
   deploymentTarget:
@@ -32,6 +33,48 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         # Downloads and backups show up in Files › On My iPad › RefBoard.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        # Smooth 120 Hz scrolling on ProMotion iPads.
+        CADisableMinimumFrameDurationOnPhone: true
+        UIRequiresFullScreen: false
+        ITSAppUsesNonExemptEncryption: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+  EroBoard:
+    type: application
+    platform: iOS
+    sources: [EroBoard]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.refboard.erome
+        PRODUCT_NAME: EroBoard
+        TARGETED_DEVICE_FAMILY: "1,2"
+        MARKETING_VERSION: "0.3.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        FRAMEWORK_SEARCH_PATHS: ["$(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework"]
+        OTHER_LDFLAGS: ["-framework", "Shared", "-lc++"]
+        ENABLE_BITCODE: NO
+        # Signed later by SideStore / LiveContainer.
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+    info:
+      path: EroBoard/Info.plist
+      properties:
+        CFBundleDisplayName: EroBoard
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        # Downloads and backups show up in Files › On My iPad › EroBoard.
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         # Smooth 120 Hz scrolling on ProMotion iPads.

@@ -4,6 +4,7 @@ import coil3.Uri
 import coil3.map.Mapper
 import coil3.request.Options
 import coil3.toUri
+import com.refboard.app.Refboard
 import com.refboard.app.platform.Platform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +37,8 @@ object LocalImages {
 
     /** The saved copy of a site image, if there is one. */
     fun find(url: String): String? {
-        if (!url.startsWith("https://cdni.")) return null
+        val host = url.substringAfter("://").substringBefore('/')
+        if (!Refboard.site.isImageHost(host)) return null
         return byName.value[fileName(url)]
     }
 

@@ -1,10 +1,12 @@
 package com.refboard.app.data
 
+import com.refboard.app.Refboard
 import com.refboard.app.platform.newHttpClient
 import com.refboard.app.platform.nowMillis
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.plugins.plugin
 import io.ktor.http.HttpHeaders
 import kotlinx.coroutines.delay
@@ -26,10 +28,12 @@ object Net {
                 connectTimeoutMillis = 20_000
                 socketTimeoutMillis = 40_000
             }
+            // Erome's "please wait" check sets a cookie that lets the next request through.
+            install(HttpCookies)
         }.also { client ->
             client.plugin(HttpSend).intercept { request ->
                 request.headers[HttpHeaders.UserAgent] = UA
-                if (!request.headers.contains(HttpHeaders.Referrer)) request.headers[HttpHeaders.Referrer] = "$ROOT/"
+                if (!request.headers.contains(HttpHeaders.Referrer)) request.headers[HttpHeaders.Referrer] = "${Refboard.site.root}/"
                 val host = request.url.host
                 Throttle.waitFor(host)
                 val call = execute(request)
@@ -60,9 +64,9 @@ object Net {
         private const val MAX_BACKOFF = 120_000L
         private const val MAX_WAIT = 150_000L
 
-        /** 429 and 503 anywhere; the image server also answers 403 when it's limiting. */
+        /** 429 and 503 anywhere; image servers also answer 403 when they're limiting. */
         fun isLimited(host: String, code: Int) =
-            code == 429 || code == 503 || (code == 403 && host.startsWith("cdni."))
+            code == 429 || code == 503 || (code == 403 && Refboard.site.isImageHost(host))
 
         suspend fun waitFor(host: String) {
             val until = lock.withLock { pausedUntil[host] } ?: return

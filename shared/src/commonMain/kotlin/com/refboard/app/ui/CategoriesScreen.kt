@@ -94,8 +94,11 @@ fun CategoriesScreen(onOpen: (FeedSource) -> Unit, onOpenMenu: () -> Unit) {
         Row(Modifier.statusBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onOpenMenu) { Icon(Icons.Outlined.Menu, "Menu") }
             TabRow(selectedTabIndex = tab, modifier = Modifier.weight(1f)) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Categories") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Tags") })
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(Refboard.site.categoriesTitle) })
+                // Sites without an A-Z tag list just have the one grid.
+                if (Refboard.site.hasTagIndex) {
+                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Tags") })
+                }
             }
         }
         TextField(
@@ -245,7 +248,8 @@ fun BrowseScreen(
     onOpenGallery: (String) -> Unit,
     onOpenViewer: () -> Unit,
 ) {
-    val vm: FeedViewModel = viewModel(key = "browse:$source")
+    // An explicit factory: iOS has no reflection to create view models.
+    val vm: FeedViewModel = viewModel(key = "browse:$source") { FeedViewModel() }
     LaunchedEffect(source) { vm.show(source) }
     Scaffold(
         contentWindowInsets = WindowInsets(0),

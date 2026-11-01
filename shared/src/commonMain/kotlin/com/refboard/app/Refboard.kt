@@ -7,7 +7,9 @@ import com.refboard.app.data.FavoritesStore
 import com.refboard.app.data.Images
 import com.refboard.app.data.LocalImages
 import com.refboard.app.data.Net
+import com.refboard.app.data.PornPicsSite
 import com.refboard.app.data.Prefs
+import com.refboard.app.data.Site
 import com.refboard.app.platform.Platform
 import com.refboard.app.platform.PlatformServices
 import com.refboard.app.platform.nowMillis
@@ -28,12 +30,16 @@ object Refboard {
         private set
     lateinit var favorites: FavoritesStore
         private set
+    /** The site this app browses. */
+    lateinit var site: Site
+        private set
 
     private var started = false
 
-    fun start(services: PlatformServices) {
+    fun start(services: PlatformServices, site: Site = PornPicsSite) {
         if (started) return
         started = true
+        this.site = site
         Platform.services = services
         Images.install()
         boards = BoardStore(services.dataDir, appScope)

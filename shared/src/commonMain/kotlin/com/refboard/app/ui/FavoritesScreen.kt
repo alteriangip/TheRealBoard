@@ -70,7 +70,8 @@ fun FavoritesScreen(
     val favorites by Refboard.favorites.favorites.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var removing by remember { mutableStateOf<Favorite?>(null) }
-    val kind = favoriteTabs[tab].first
+    val tabs = favoriteTabs
+    val kind = tabs[tab.coerceIn(0, tabs.lastIndex)].first
     val shown = remember(favorites, kind) { favorites.filter { it.kind == kind } }
 
     Column(Modifier.fillMaxSize()) {
@@ -86,8 +87,8 @@ fun FavoritesScreen(
             )
         }
 
-        TabRow(selectedTabIndex = tab) {
-            favoriteTabs.forEachIndexed { i, (_, label) ->
+        TabRow(selectedTabIndex = tab.coerceIn(0, tabs.lastIndex)) {
+            tabs.forEachIndexed { i, (_, label) ->
                 Tab(selected = tab == i, onClick = { tab = i }, text = { Text(label) })
             }
         }
@@ -98,7 +99,7 @@ fun FavoritesScreen(
                     "No categories or tags yet. Tap ☆ on a category or tag page, long-press a tile in " +
                         "the Categories tab, or tap ☆ on a gallery's tags."
                 } else {
-                    "None yet. Open a gallery and tap the ☆ next to a model or channel to bookmark them here."
+                    "None yet. Open a gallery and tap the ☆ next to a name to bookmark it here."
                 },
             )
             return
@@ -157,11 +158,11 @@ fun FavoritesScreen(
 }
 
 /** Tabs: the favourite kind each shows, and its label. */
-private val favoriteTabs = listOf(
-    Favorite.MODEL to "Pornstars",
-    Favorite.CHANNEL to "Channels",
-    Favorite.TOPIC to "Categories & tags",
-)
+private val favoriteTabs get() = buildList {
+    add(Favorite.MODEL to Refboard.site.peopleLabel)
+    if (Refboard.site.hasChannels) add(Favorite.CHANNEL to "Channels")
+    add(Favorite.TOPIC to if (Refboard.site.hasTagIndex) "Categories & tags" else "Tags")
+}
 
 /**
  * Newest galleries across favourites. At most 6 are mixed at once (newest

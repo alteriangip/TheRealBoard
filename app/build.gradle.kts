@@ -22,6 +22,22 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    // One app per site. Different application ids, so both install side by side.
+    flavorDimensions += "site"
+    productFlavors {
+        create("pornpics") {
+            dimension = "site"
+            resValue("string", "app_name", "RefBoard")
+            buildConfigField("String", "SITE", "\"pornpics\"")
+        }
+        create("erome") {
+            dimension = "site"
+            applicationId = "com.refboard.erome"
+            resValue("string", "app_name", "EroBoard")
+            buildConfigField("String", "SITE", "\"erome\"")
+        }
+    }
+
     signingConfigs {
         // One fixed key so every GitHub build installs over the previous one
         // without uninstalling. If the REFBOARD_KEYSTORE_* secrets are set,
@@ -52,7 +68,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     // The release lint check's built-in Kotlin analyser predates Kotlin 2.2.
     lint { checkReleaseBuilds = false }
 }

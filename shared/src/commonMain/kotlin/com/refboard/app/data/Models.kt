@@ -43,7 +43,7 @@ data class TagEntry(
     val name: String,
     val slug: String,
 ) {
-    val url get() = "${Net.ROOT}/tags/$slug/"
+    val url get() = "${SiteParser.ROOT}/tags/$slug/"
 }
 
 @Serializable
@@ -52,6 +52,8 @@ data class GalleryImage(
     val num: Int? = null,
     val thumb: String? = null,
     val ratio: Float? = null,
+    /** For videos: the file to play ([url] is its still frame). */
+    val video: String? = null,
 )
 
 @Serializable
@@ -91,6 +93,8 @@ data class ViewerImage(
     val galleryUrl: String?,
     val title: String,
     val tags: List<String>,
+    /** For videos: the file to play ([url] is its still frame). */
+    val video: String? = null,
 )
 
 /** What a feed is currently showing. */

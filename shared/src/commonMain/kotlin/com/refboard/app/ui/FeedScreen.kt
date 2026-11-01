@@ -30,14 +30,6 @@ import com.refboard.app.Refboard
 import com.refboard.app.data.FeedSource
 import com.refboard.app.data.Orientation
 
-/** The feeds on offer: "For you" plus the site's own listings. */
-private val listingKinds = listOf(
-    "popular" to "Popular",
-    "recent" to "Newest",
-    "rating" to "Top rated",
-    "likes" to "Most liked",
-    "views" to "Most viewed",
-)
 
 @Composable
 fun FeedScreen(
@@ -51,7 +43,8 @@ fun FeedScreen(
     }
     val orientation by Refboard.prefs.orientation.collectAsState()
     val listings = remember(orientation) {
-        listingKinds.map { (kind, title) -> FeedSource.Listing(kind, title, orientation) }
+        // "For you" plus the site's own listings.
+        Refboard.site.listings.map { (kind, title) -> FeedSource.Listing(kind, title, orientation) }
     }
     val source = vm.source
     val forYou = source == null || source is FeedSource.Mix
@@ -67,7 +60,7 @@ fun FeedScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f).clickable { Session.scrollToTop() },
             )
-            if (orientation != Orientation.Straight) {
+            if (Refboard.site.hasOrientation && orientation != Orientation.Straight) {
                 Text(
                     orientation.label,
                     style = MaterialTheme.typography.labelLarge,

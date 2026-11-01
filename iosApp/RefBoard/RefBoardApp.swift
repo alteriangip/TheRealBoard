@@ -16,7 +16,7 @@ struct RefBoardApp: App {
 /** Hosts the shared Compose UI. */
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
+        MainViewControllerKt.MainViewController(site: "pornpics")
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}

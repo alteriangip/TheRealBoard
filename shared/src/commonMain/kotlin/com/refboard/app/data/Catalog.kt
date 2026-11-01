@@ -1,5 +1,6 @@
 package com.refboard.app.data
 
+import com.refboard.app.Refboard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -61,17 +62,17 @@ object Catalog {
     }
 
     suspend fun loadCategories(o: Orientation, force: Boolean = false): List<Category> = categoriesLock.withLock {
-        load(force, _categories, o, "categories-${o.name}.json", Category.serializer()) { SiteApi.categories(o) }
+        load(force, _categories, o, "categories-${o.name}.json", Category.serializer()) { Refboard.site.categories(o) }
     }
 
     suspend fun loadTags(o: Orientation, force: Boolean = false): List<TagEntry> = tagsLock.withLock {
-        load(force, _tags, o, "tags-${o.name}.json", TagEntry.serializer()) { SiteApi.tagsIndex(o) }
+        load(force, _tags, o, "tags-${o.name}.json", TagEntry.serializer()) { Refboard.site.tagsIndex(o) }
     }
 
     /** Fetches a sample image for a tag or category page unless it is known. Cancel it when the tile scrolls away. */
     suspend fun loadSample(pageUrl: String) {
         if (pageUrl in _samples.value) return
-        val url = runCatching { SiteApi.tagSample(pageUrl) }.getOrNull() ?: return
+        val url = runCatching { Refboard.site.sample(pageUrl) }.getOrNull() ?: return
         _samples.update { it + (pageUrl to url) }
     }
 

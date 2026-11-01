@@ -267,6 +267,7 @@ private fun AppRoot(sharedUrl: String?, onSharedHandled: () -> Unit) {
                     onTag = ::searchTag,
                     onSearch = ::searchText,
                     onOpenViewer = { nav.navigate(Routes.viewer(false)) },
+                    onOpenPage = { name, url -> nav.navigate(Routes.browse(name, url)) },
                 )
             }
             composable(

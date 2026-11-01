@@ -1,5 +1,6 @@
 package com.refboard.app.data
 
+import com.refboard.app.Refboard
 import com.refboard.app.platform.Files
 import com.refboard.app.platform.Platform
 import com.refboard.app.platform.fileSystem
@@ -20,8 +21,8 @@ object Bridge {
     private val galleryCache = Lru<String, GalleryData>(60)
     private val previewLimit = Semaphore(3)
 
-    fun searchUrl(query: String): String = SiteParser.searchUrl(query)
-    fun tagUrl(tag: String): String = SiteParser.tagUrl(tag)
+    fun searchUrl(query: String): String = Refboard.site.searchUrl(query)
+    fun tagUrl(tag: String): String = Refboard.site.tagUrl(tag)
 
     /** gallery-dl's version, or null where the device doesn't have it. */
     suspend fun gdlVersion(): String? = Platform.services.galleryDl?.version()
@@ -31,7 +32,7 @@ object Bridge {
         is FeedSource.Tag -> tagUrl(source.tag)
         is FeedSource.Url -> source.url
         is FeedSource.Category -> source.url
-        is FeedSource.Listing -> source.orientation.url("${source.kind}/")
+        is FeedSource.Listing -> Refboard.site.listingUrl(source.kind, source.orientation)
         is FeedSource.Mix -> error("A mix has no single URL")
     }
 
@@ -41,7 +42,8 @@ object Bridge {
             galleryCache[url] = it
             return it
         }
-        val direct = if (SiteApi.isSiteGallery(url)) runCatching { SiteApi.gallery(url) }.getOrNull() else null
+        val site = Refboard.site
+        val direct = if (site.isGallery(url)) runCatching { site.gallery(url) }.getOrNull() else null
         val data = direct
             ?: Platform.services.galleryDl?.gallery(url)
             ?: throw SiteException("Couldn't read this gallery")

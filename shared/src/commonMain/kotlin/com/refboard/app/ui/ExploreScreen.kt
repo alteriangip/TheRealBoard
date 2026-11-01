@@ -64,14 +64,11 @@ import androidx.compose.ui.unit.dp
 import com.refboard.app.Refboard
 import com.refboard.app.data.FeedItem
 import com.refboard.app.data.FeedSource
+import com.refboard.app.data.Orientation
 import com.refboard.app.data.Net
 import com.refboard.app.data.Thumbs
 import com.refboard.app.data.ViewerImage
 
-private val starterSearches = listOf(
-    "standing", "sitting", "kneeling", "lying", "from behind", "side view",
-    "close up", "legs", "feet", "hands", "stretching", "yoga", "looking back",
-)
 
 @Composable
 fun ExploreScreen(
@@ -165,16 +162,17 @@ private fun HomeSuggestions(onSearch: (String) -> Unit, onOpenUrl: (String) -> U
         }
         SectionLabel("Pose & angle ideas")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            starterSearches.forEach { AssistChip(onClick = { onSearch(it) }, label = { Text(it) }) }
+            Refboard.site.starterSearches.forEach { AssistChip(onClick = { onSearch(it) }, label = { Text(it) }) }
         }
         SectionLabel("Browse")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AssistChip(onClick = { onOpenUrl("${Net.ROOT}/popular/") }, label = { Text("Popular") })
-            AssistChip(onClick = { onOpenUrl("${Net.ROOT}/recent/") }, label = { Text("Recent") })
-            AssistChip(onClick = { onOpenUrl("${Net.ROOT}/rating/") }, label = { Text("Top rated") })
+            val site = Refboard.site
+            site.listings.take(3).forEach { (kind, title) ->
+                AssistChip(onClick = { onOpenUrl(site.listingUrl(kind, Orientation.Straight)) }, label = { Text(title) })
+            }
         }
         Text(
-            "Tip: tap any tag on a gallery to search it. Long-press a tile to save the whole gallery to a board. Browse every category and tag in the Categories tab.",
+            "Tip: tap any tag on a gallery to search it. Long-press a tile to save the whole gallery to a board. Browse more in the Categories tab.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 12.dp),
@@ -313,7 +311,7 @@ private fun FeedTile(
         modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         RemoteImage(
-            primary = full?.let { Thumbs.small(it) },
+            primary = full?.let { Refboard.site.smallImage(it) },
             fallback = full,
             modifier = Modifier.fillMaxWidth(),
             minHeight = 200,

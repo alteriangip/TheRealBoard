@@ -111,8 +111,8 @@ class GalleryViewModel(private val url: String) : ViewModel() {
     }
 }
 
-private val groupLabels = listOf(
-    "models" to "Models",
+private val groupLabels get() = listOf(
+    "models" to if (Refboard.site.personUrl("x") != null) "Uploader" else "Models",
     "channel" to "Channel",
     "categories" to "Categories",
     "tags" to "Tags",
@@ -126,6 +126,8 @@ fun GalleryScreen(
     onTag: (String) -> Unit,
     onSearch: (String) -> Unit,
     onOpenViewer: () -> Unit,
+    /** Opens a person's own page (sites that have one). */
+    onOpenPage: (name: String, url: String) -> Unit = { _, _ -> },
 ) {
     val vm: GalleryViewModel = viewModel(key = url) { GalleryViewModel(url) }
     val uriHandler = LocalUriHandler.current
@@ -197,7 +199,18 @@ fun GalleryScreen(
                                     modifier = Modifier.padding(start = 4.dp, top = 4.dp),
                                 )
                                 when (key) {
-                                    "models" -> FavoriteChipRow(values, Favorite.MODEL, onOpen = onSearch)
+                                    "models" -> {
+                                        val site = Refboard.site
+                                        FavoriteChipRow(
+                                            values,
+                                            Favorite.MODEL,
+                                            onOpen = { name ->
+                                                val page = site.personUrl(name)
+                                                if (page != null) onOpenPage(name, page) else onSearch(name)
+                                            },
+                                            linkFor = { name -> site.personUrl(name) ?: site.searchUrl(name) },
+                                        )
+                                    }
                                     "channel" -> FavoriteChipRow(values, Favorite.CHANNEL, onOpen = onSearch)
                                     "categories" -> FavoriteChipRow(values, Favorite.TOPIC, onOpen = onTag) { name ->
                                         Catalog.categoryNamed(name, Refboard.prefs.orientation.value)?.url
@@ -205,7 +218,7 @@ fun GalleryScreen(
                                             ?: SiteParser.searchUrl(name)
                                     }
                                     "tags" -> FavoriteChipRow(values, Favorite.TOPIC, onOpen = onTag) { name ->
-                                        SiteParser.tagUrl(name)
+                                        Refboard.site.tagUrl(name)
                                     }
                                     else -> TagRow(values, onTag = onTag)
                                 }
@@ -215,7 +228,14 @@ fun GalleryScreen(
                             TagRow(data.tags, onTag = onTag)
                         }
                         Text(
-                            "${data.images.size} images · long-press to select",
+                            data.images.count { it.video != null }.let { videos ->
+                                val photos = data.images.size - videos
+                                buildString {
+                                    append("$photos photos")
+                                    if (videos > 0) append(" · $videos videos")
+                                    append(" · long-press to select")
+                                }
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 4.dp, top = 6.dp),
@@ -234,7 +254,7 @@ fun GalleryScreen(
                                 onClick = {
                                     if (selecting) vm.toggle(img.url) else {
                                         Session.openViewer(
-                                            data.images.map { ViewerImage(it.url, url, data.title, data.tags) },
+                                            data.images.map { ViewerImage(it.url, url, data.title, data.tags, it.video) },
                                             index,
                                         )
                                         onOpenViewer()
@@ -243,7 +263,8 @@ fun GalleryScreen(
                                 onLongClick = { vm.toggle(img.url) },
                             ),
                     ) {
-                        RemoteImage(primary = img.thumb ?: Thumbs.small(img.url), fallback = img.url, minHeight = 220, ratio = img.ratio)
+                        RemoteImage(primary = img.thumb ?: Refboard.site.smallImage(img.url), fallback = img.url, minHeight = 220, ratio = img.ratio)
+                        if (img.video != null) VideoBadge(Modifier.align(Alignment.Center))
                         if (isSelected) {
                             Icon(
                                 Icons.Outlined.CheckCircle, null,
