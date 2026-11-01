@@ -271,3 +271,29 @@ actual fun rememberNotificationPermission(): (then: () -> Unit) -> Unit {
         }
     }
 }
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+actual fun VideoPlayer(url: String, referer: String, modifier: androidx.compose.ui.Modifier) {
+    val context = LocalContext.current
+    val player = remember(url) {
+        // Sends the site's Referer and the app's user agent with every video request.
+        val http = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setUserAgent(com.refboard.app.data.Net.UA)
+            .setDefaultRequestProperties(mapOf("Referer" to referer))
+            .setAllowCrossProtocolRedirects(true)
+        androidx.media3.exoplayer.ExoPlayer.Builder(context)
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(http))
+            .build()
+            .apply {
+                setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+                prepare()
+                playWhenReady = true
+            }
+    }
+    androidx.compose.runtime.DisposableEffect(player) { onDispose { player.release() } }
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { ctx -> androidx.media3.ui.PlayerView(ctx).apply { this.player = player } },
+        modifier = modifier,
+    )
+}

@@ -146,3 +146,25 @@ actual fun rememberBackupImport(onText: (String?) -> Unit): () -> Unit =
 /** iPadOS needs no permission for the download progress shown in the app. */
 @Composable
 actual fun rememberNotificationPermission(): (then: () -> Unit) -> Unit = remember { { then -> then() } }
+
+@Composable
+actual fun VideoPlayer(url: String, referer: String, modifier: androidx.compose.ui.Modifier) {
+    val controller = remember(url) {
+        // AVURLAssetHTTPHeaderFieldsKey: extra headers for every request of this video.
+        val headers = mapOf<Any?, Any?>("Referer" to referer, "User-Agent" to com.refboard.app.data.Net.UA)
+        val asset = platform.AVFoundation.AVURLAsset(
+            uRL = platform.Foundation.NSURL(string = url),
+            options = mapOf<Any?, Any?>("AVURLAssetHTTPHeaderFieldsKey" to headers),
+        )
+        val player = platform.AVFoundation.AVPlayer(playerItem = platform.AVFoundation.AVPlayerItem(asset = asset))
+        platform.AVKit.AVPlayerViewController().apply {
+            this.player = player
+            player.play()
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(controller) { onDispose { controller.player?.pause() } }
+    androidx.compose.ui.viewinterop.UIKitViewController(
+        factory = { controller },
+        modifier = modifier,
+    )
+}

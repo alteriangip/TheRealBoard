@@ -67,13 +67,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import com.refboard.app.Refboard
 import com.refboard.app.data.Pin
+import androidx.compose.material.icons.outlined.Close
+import com.refboard.app.platform.VideoPlayer
 import com.refboard.app.data.Thumbs
 import com.refboard.app.data.ViewerImage
 import kotlinx.coroutines.delay
@@ -116,7 +117,8 @@ fun ViewerScreen(
     var chrome by remember { mutableStateOf(true) }
     var pickFor by remember { mutableStateOf<ViewerImage?>(null) }
     val scope = rememberCoroutineScope()
-    val uriHandler = LocalUriHandler.current
+    /** The video being played full-screen, if any. */
+    var playing by remember { mutableStateOf<String?>(null) }
 
     var mirror by rememberSaveable { mutableStateOf(false) }
     var grey by rememberSaveable { mutableStateOf(false) }
@@ -262,8 +264,8 @@ fun ViewerScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     current.video?.let { video ->
-                        // Videos play in the device's own player.
-                        Button(onClick = { runCatching { uriHandler.openUri(video) } }) {
+                        // Played inside the app, which can send the Referer the site requires.
+                        Button(onClick = { playing = video }) {
                             Icon(Icons.Outlined.PlayArrow, null); Text(" Play")
                         }
                     }
@@ -301,6 +303,15 @@ fun ViewerScreen(
                 )
                 Spacer(Modifier.height(20.dp))
                 Button(onClick = onBack) { Text("Done") }
+            }
+        }
+        playing?.let { video ->
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                VideoPlayer(video, "${Refboard.site.root}/", Modifier.fillMaxSize())
+                IconButton(
+                    onClick = { playing = null },
+                    modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(4.dp),
+                ) { Icon(Icons.Outlined.Close, "Close video", tint = Color.White) }
             }
         }
     }

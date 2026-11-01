@@ -75,3 +75,11 @@ expect fun rememberBackupImport(onText: (String?) -> Unit): () -> Unit
 /** Asks to show notifications if the platform needs that, then runs the action either way. */
 @Composable
 expect fun rememberNotificationPermission(): (then: () -> Unit) -> Unit
+
+/**
+ * Plays a video inside the app, sending [referer] with the request. Some
+ * sites (Erome) refuse their video files without it, so handing the link
+ * to a browser or another app doesn't work.
+ */
+@Composable
+expect fun VideoPlayer(url: String, referer: String, modifier: androidx.compose.ui.Modifier)
