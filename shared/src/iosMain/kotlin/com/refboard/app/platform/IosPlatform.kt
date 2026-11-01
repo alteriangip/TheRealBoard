@@ -19,6 +19,8 @@ import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
+import platform.AVFoundation.pause
+import platform.AVFoundation.play
 import platform.Foundation.NSDate
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSSearchPathDirectory
